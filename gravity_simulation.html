@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Existing CSS styles remain unchanged -->
+</head>
+<body>
+    <!-- Existing HTML structure remains unchanged -->
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('DOM fully loaded');
+            
+            // Comprehensive error checking for all elements
+            const requiredElements = {
+                'main-canvas': document.getElementById('main-canvas'),
+                'vector-display': document.getElementById('vector-display'),
+                'planet-select': document.getElementById('planet-select'),
+                'start-btn': document.getElementById('start-btn'),
+                'reset-btn': document.getElementById('reset-btn'),
+                'height-slider': document.getElementById('height-slider'),
+                'height-value': document.getElementById('height-value'),
+                'gravity-value': document.getElementById('gravity-value'),
+                'velocity-value': document.getElementById('velocity-value'),
+                'current-height': document.getElementById('current-height'),
+                'energy-chart': document.getElementById('energy-chart'),
+                'gravity-fact': document.getElementById('gravity-fact'),
+                'comparison-fact': document.getElementById('comparison-fact')
+            };
+
+            const missingElements = Object.entries(requiredElements)
+                .filter(([name, element]) => !element)
+                .map(([name]) => name);
+
+            if (missingElements.length > 0) {
+                console.error('Missing required elements:', missingElements.join(', '));
+                return;
+            }
+
+            const canvas = requiredElements['main-canvas'];
+            const ctx = canvas.getContext('2d');
+
+            // Rest of the JavaScript code remains the same
+            const gravityValues = {
+                mercury: { g: 3.71, info: "Mercury's gravity is about 38% of Earth's", comparison: "You'd weigh 62% less than on Earth" },
+                venus: { g: 8.87, info: "Venus' gravity is about 90% of Earth's", comparison: "Similar to Earth's gravity" },
+                earth: { g: 9.81, info: "Earth's standard gravity", comparison: "Our home planet's gravity" },
+                mars: { g: 3.72, info: "Mars' gravity is about 38% of Earth's", comparison: "You could jump 2.6x higher" },
+                jupiter: { g: 24.79, info: "Jupiter's gravity is 2.5x Earth's", comparison: "You'd weigh 150% more" },
+                saturn: { g: 10.44, info: "Saturn's gravity is about 107% of Earth's", comparison: "Similar to Earth's surface gravity" },
+                uranus: { g: 8.87, info: "Uranus' gravity is about 90% of Earth's", comparison: "Like floating in a dense atmosphere" },
+                neptune: { g: 11.15, info: "Neptune's gravity is about 114% of Earth's", comparison: "You'd feel 14% heavier" },
+                moon: { g: 1.62, info: "The Moon's gravity is 16.5% of Earth's", comparison: "You could jump 6x higher" }
+            };
+
+            let ball = {
+                x: canvas.width / 2,
+                y: 50,
+                radius: 20,
+                velocity: 0,
+                mass: 1 // kg
+            };
+
+            let isRunning = false;
+            let currentG = gravityValues.earth.g;
+            let energyData = [];
+            const maxDataPoints = 50;
+
+            // Create starry background
+            for(let i = 0; i < 100; i++) {
+                const star = document.createElement('div');
+                star.className = 'star';
+                star.style.left = `${Math.random() * 100}%`;
+                star.style.top = `${Math.random() * 100}%`;
+                star.style.animationDelay = `${Math.random() * 1.5}s`;
+                document.body.appendChild(star);
+            }
+
+            function drawVector(magnitude) {
+                const vectorHeight = Math.min(Math.abs(magnitude) * 5, 150);
+                requiredElements['vector-display'].style.height = `${vectorHeight}px`;
+                requiredElements['vector-display'].style.transform = `scaleY(${magnitude > 0 ? 1 : -1})`;
+                requiredElements['vector-display'].style.borderColor = magnitude > 0 ? 
+                    'var(--secondary-color)' : '#ff4444';
+            }
+
+            function updateEnergyChart() {
+                const kinetic = 0.5 * ball.mass * ball.velocity ** 2;
+                const potential = ball.mass * currentG * (canvas.height - ball.y)/100;
+                energyData.push({kinetic, potential});
+                
+                if(energyData.length > maxDataPoints) energyData.shift();
+                
+                requiredElements['energy-chart'].innerHTML = energyData.map(e => 
+                    `KE: ${e.kinetic.toFixed(1)}J PE: ${e.potential.toFixed(1)}J`
+                ).join('<br>');
+            }
+
+            function updateDisplays() {
+                requiredElements['gravity-value'].textContent = currentG.toFixed(2);
+                requiredElements['velocity-value'].textContent = ball.velocity.toFixed(2);
+                requiredElements['current-height'].textContent = ((canvas.height - ball.y)/100).toFixed(2);
+                requiredElements['gravity-fact'].textContent = gravityValues[requiredElements['planet-select'].value].info;
+                requiredElements['comparison-fact'].textContent = gravityValues[requiredElements['planet-select'].value].comparison;
+            }
+
+            function updateSimulation() {
+                if(isRunning) {
+                    ball.velocity += currentG / 60;
+                    ball.y += ball.velocity;
+
+                    if(ball.y + ball.radius > canvas.height) {
+                        ball.y = canvas.height - ball.radius;
+                        ball.velocity = -ball.velocity * 0.8;
+                        if(Math.abs(ball.velocity) < 0.5) isRunning = false;
+                    }
+
+                    drawVector(ball.velocity);
+                    updateEnergyChart();
+                }
+            }
+
+            function draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.beginPath();
+                ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+                ctx.fillStyle = `hsl(${(ball.velocity * 10) % 360}, 70%, 50%)`;
+                ctx.fill();
+            }
+
+            // Main continuous animation loop
+            function gameLoop() {
+                updateSimulation();
+                draw();
+                updateDisplays();
+                requestAnimationFrame(gameLoop);
+            }
+
+            // Event Listeners
+            requiredElements['start-btn'].addEventListener('click', () => {
+                isRunning = !isRunning;
+                requiredElements['start-btn'].textContent = isRunning ? '⏸ Pause' : '▶ Resume';
+            });
+
+            requiredElements['reset-btn'].addEventListener('click', () => {
+                isRunning = false;
+                ball.y = parseInt(requiredElements['height-slider'].value);
+                ball.velocity = 0;
+                requiredElements['start-btn'].textContent = '▶ Start';
+                energyData = [];
+                drawVector(0);
+            });
+
+            requiredElements['height-slider'].addEventListener('input', (e) => {
+                requiredElements['height-value'].textContent = e.target.value;
+                ball.y = parseInt(e.target.value);
+            });
+
+            requiredElements['planet-select'].addEventListener('change', (e) => {
+                currentG = gravityValues[e.target.value].g;
+                requiredElements['gravity-fact'].textContent = gravityValues[e.target.value].info;
+                requiredElements['comparison-fact'].textContent = gravityValues[e.target.value].comparison;
+            });
+
+            // Initialize simulation
+            function init() {
+                ball.y = parseInt(requiredElements['height-slider'].value);
+                draw();
+                updateDisplays();
+                requiredElements['planet-select'].dispatchEvent(new Event('change'));
+            }
+
+            try {
+                init();
+                gameLoop();
+            } catch (error) {
+                console.error('Error initializing simulation:', error);
+            }
+        });
+    </script>
+</body>
+</html>

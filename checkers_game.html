@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>DAMA - Checkers Game</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #333; }
+        canvas { display: block; margin: 0 auto; }
+        #game-status {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-size: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-status"></div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/6.5.2/pixi.min.js"></script>
+    <script>
+        // PixiJS application setup
+        const app = new PIXI.Application({ width: 600, height: 600, backgroundColor: 0xAAAAAA });
+        document.body.appendChild(app.view);
+
+        // Game variables
+        const boardSize = 8;
+        const tileSize = app.screen.width / boardSize;
+        const board = []; // 2D array to represent the board state
+        let selectedPiece = null;
+        let currentPlayer = 'black'; // Black starts in checkers
+        let mustJump = false;
+        const gameStatusElement = document.getElementById('game-status');
+
+
+        // Function to draw the checkerboard
+        function drawBoard() {
+            for (let row = 0; row < boardSize; row++) {
+                board[row] = [];
+                for (let col = 0; col < boardSize; col++) {
+                    const color = (row + col) % 2 === 0 ? 0xEEEEEE : 0x333333;
+                    const square = new PIXI.Graphics();
+                    square.beginFill(color);
+                    square.drawRect(col * tileSize, row * tileSize, tileSize, tileSize);
+                    square.endFill();
+                    app.stage.addChild(square);
+                    board[row][col] = null; // Initialize board state
+                }
+            }
+        }
+
+        // Function to place pieces on the board
+        function placePieces() {
+            // Red pieces
+            for (let row = 0; row < 3; row++) {
+                for (let col = 0; col < boardSize; col++) {
+                    if ((row + col) % 2 !== 0) {
+                        const piece = new PIXI.Graphics();
+                        piece.beginFill(0xFF0000); // Red
+                        piece.drawCircle(col * tileSize + tileSize / 2, row * tileSize + tileSize / 2, tileSize / 3);
+                        piece.endFill();
+                        piece.interactive = true;
+                        piece.buttonMode = true;
+                        piece.position.set(col * tileSize, row * tileSize); // Set position to the top-left of the tile
+                        piece.originalPosition = { x: piece.position.x, y: piece.position.y }; // Store original position
+                        piece.on('pointerdown', onPieceDown);
+                        app.stage.addChild(piece);
+                        board[row][col] = { type: 'red', graphic: piece };
+                    }
+                }
+            }
+
+            // Black pieces
+            for (let row = 5; row < boardSize; row++) {
+                for (let col = 0; col < boardSize; col++) {
+                    if ((row + col) % 2 !== 0) {
+                        const piece = new PIXI.Graphics();
+                        piece.beginFill(0x000000); // Black
+                        piece.drawCircle(col * tileSize + tileSize / 2, row * tileSize + tileSize / 2, tileSize / 3);
+                        piece.endFill();
+                        piece.interactive = true;
+                        piece.buttonMode = true;
+                         piece.position.set(col * tileSize, row * tileSize); // Set position to the top-left of the tile
+                        piece.originalPosition = { x: piece.position.x, y: piece.position.y }; // Store original position
+                        piece.on('pointerdown', onPieceDown);
+                        app.stage.addChild(piece);
+                        board[row][col] = { type: 'black', graphic: piece };
+                    }
+                }
+            }
+        }
+
+        function onPieceDown() {
+            // 'this' refers to the piece graphic that was clicked
+            const pieceData = getPieceData(this);
+
+            if (pieceData && pieceData.type === currentPlayer) {
+                 // If there's a mandatory jump, only allow selecting a piece that can jump
+                if (mustJump && !canJumpFrom(getRow(pieceData.graphic), getCol(pieceData.graphic))) {
+                    console.log("Must perform a jump with a different piece.");
+                    return;
+                }
+
+                 if (selectedPiece) {
+                    // Deselect previous piece
+                    selectedPiece.graphic.alpha = 1;
+                }
+                selectedPiece = pieceData;
+                selectedPiece.graphic.alpha = 0.5; // Indicate selected piece
+            } else {
+                // If a piece of the wrong color is clicked, deselect any currently selected piece
+                if (selectedPiece) {
+                    selectedPiece.graphic.alpha = 1;
+                    selectedPiece = null;
+                }
+            }
+        }
+
+        // Helper function to get piece data from graphic
+        function getPieceData(graphic) {
+            for (let row = 0; row < boardSize; row++) {
+                for (let col = 0; col < boardSize; col++) {
+                    if (board[row][col] && board[row][col].graphic === graphic) {
+                        return board[row][col];
+                    }
+                }
+            }
+            return null;
+        }
+
+        // Helper functions to get row and column from graphic position
+        function getRow(graphic) {
+            return Math.floor(graphic.position.y / tileSize);
+        }
+
+        function getCol(graphic) {
+            return Math.floor(graphic.position.x / tileSize);
+        }
+
+
+        // Function to handle board clicks for movement
+        app.view.addEventListener('click', onBoardClick);
+
+        function onBoardClick(event) {
+            if (selectedPiece) {
+                const rect = app.view.getBoundingClientRect();
+                const x = event.clientX - rect.left;
+                const y = event.clientY - rect.top;
+
+                const clickedCol = Math.floor(x / tileSize);
+                const clickedRow = Math.floor(y / tileSize);
+
+                const originalCol = getCol(selectedPiece.graphic);
+                const originalRow = getRow(selectedPiece.graphic);
+
+                // Check if the clicked tile is a valid move
+                if (isValidJump(originalRow, originalCol, clickedRow, clickedCol)) {
+                    performJump(originalRow, originalCol, clickedRow, clickedCol);
+                     checkForKing(clickedRow, clickedCol);
+
+                     // Check for multi-jumps
+                     if (canJumpFrom(clickedRow, clickedCol)) {
+                         // If multi-jump is possible, keep the same player and selected piece
+                         selectedPiece.graphic.alpha = 0.5; // Keep piece selected for multi-jump
+                         mustJump = true; // Mandatory multi-jump
+                     } else {
+                         mustJump = false;
+                         switchPlayer();
+                         checkWinCondition(); // Check for win after switching player
+                     }
+
+                } else if (!mustJump && isValidMove(originalRow, originalCol, clickedRow, clickedCol)) {
+                     movePiece(originalRow, originalCol, clickedRow, clickedCol);
+                     checkForKing(clickedRow, clickedCol);
+                     switchPlayer();
+                     checkWinCondition(); // Check for win after switching player
+                }
+                 else {
+                    // Invalid move, deselect the piece
+                    selectedPiece.graphic.alpha = 1;
+                    selectedPiece = null;
+                }
+            }
+        }
+
+        function isValidMove(startRow, startCol, endRow, endCol) {
+            // Basic validation: check if the end position is on the board and empty
+            if (endRow < 0 || endRow >= boardSize || endCol < 0 || endCol >= boardSize || board[endRow][endCol] !== null) {
+                return false;
+            }
+
+            const piece = board[startRow][startCol];
+            const rowDiff = endRow - startRow;
+            const colDiff = Math.abs(endCol - startCol);
+
+            // Standard move: one step diagonally
+            if (colDiff === 1) {
+                if (piece.type === 'black' && rowDiff === -1) return true;
+                if (piece.type === 'red' && rowDiff === 1) return true;
+                if (piece.isKing && Math.abs(rowDiff) === 1) return true;
+            }
+
+            return false;
+        }
+
+         function isValidJump(startRow, startCol, endRow, endCol) {
+            // Basic validation: check if the end position is on the board and empty
+            if (endRow < 0 || endRow >= boardSize || endCol < 0 || endCol >= boardSize || board[endRow][endCol] !== null) {
+                return false;
+            }
+
+            const piece = board[startRow][startCol];
+            const rowDiff = endRow - startRow;
+            const colDiff = Math.abs(endCol - startCol);
+
+            // Jump: two steps diagonally
+            if (colDiff === 2) {
+                const jumpedRow = startRow + rowDiff / 2;
+                const jumpedCol = startCol + (endCol - startCol) / 2;
+
+                // Check if there is an opponent's piece in the jumped-over square
+                if (board[jumpedRow][jumpedCol] !== null && board[jumpedRow][jumpedCol].type !== piece.type) {
+                    if (piece.type === 'black' && rowDiff === -2) return true;
+                    if (piece.type === 'red' && rowDiff === 2) return true;
+                    if (piece.isKing && Math.abs(rowDiff) === 2) return true;
+                }
+            }
+
+            return false;
+        }
+
+        function movePiece(startRow, startCol, endRow, endCol) {
+            const piece = board[startRow][startCol];
+            piece.graphic.position.set(endCol * tileSize, endRow * tileSize);
+            piece.originalPosition = { x: endCol * tileSize, y: endRow * tileSize }; // Update original position
+            board[endRow][endCol] = piece;
+            board[startRow][startCol] = null;
+             selectedPiece = null; // Deselect after move
+        }
+
+        function performJump(startRow, startCol, endRow, endCol) {
+            movePiece(startRow, startCol, endRow, endCol);
+
+            const jumpedRow = startRow + (endRow - startRow) / 2;
+            const jumpedCol = startCol + (endCol - startCol) / 2;
+
+            // Remove the jumped piece
+            const jumpedPiece = board[jumpedRow][jumpedCol];
+            app.stage.removeChild(jumpedPiece.graphic);
+            board[jumpedRow][jumpedCol] = null;
+        }
+
+        function checkForKing(row, col) {
+            const piece = board[row][col];
+            if (piece && !piece.isKing) {
+                if (piece.type === 'black' && row === 0) {
+                    kingPiece(piece);
+                } else if (piece.type === 'red' && row === boardSize - 1) {
+                    kingPiece(piece);
+                }
+            }
+        }
+
+        function kingPiece(piece) {
+            piece.isKing = true;
+            // Visually indicate a king (e.g., change color or add a crown)
+            // Remove the old graphic representation
+            app.stage.removeChild(piece.graphic);
+
+            // Create a new graphic for the king piece (e.g., a larger circle or a different shape)
+            const kingGraphic = new PIXI.Graphics();
+            kingGraphic.beginFill(piece.type === 'black' ? 0x444444 : 0xFFBBBB); // Example: darker/lighter color
+            kingGraphic.drawCircle(getCol(piece.graphic) * tileSize + tileSize / 2, getRow(piece.graphic) * tileSize + tileSize / 2, tileSize / 2.5); // Slightly larger circle
+            kingGraphic.endFill();
+            kingGraphic.interactive = true;
+            kingGraphic.buttonMode = true;
+            kingGraphic.position.set(getCol(piece.graphic) * tileSize, getRow(piece.graphic) * tileSize);
+            kingGraphic.originalPosition = { x: kingGraphic.position.x, y: kingGraphic.position.y };
+            kingGraphic.on('pointerdown', onPieceDown);
+
+            // Update the piece data with the new graphic
+            piece.graphic = kingGraphic;
+            app.stage.addChild(kingGraphic);
+        }
+
+        function switchPlayer() {
+            currentPlayer = currentPlayer === 'black' ? 'red' : 'black';
+            mustJump = checkForMandatoryJumps();
+            updateGameStatus(); // Update status display
+            console.log("Current player:", currentPlayer, "Must Jump:", mustJump); // For debugging
+        }
+
+        function canJumpFrom(row, col) {
+             const piece = board[row][col];
+             if (!piece) return false;
+
+             const directions = piece.isKing ? [[-2, -2], [-2, 2], [2, -2], [2, 2]] :
+                                piece.type === 'black' ? [[-2, -2], [-2, 2]] : [[2, -2], [2, 2]];
+
+             for (const [rowDir, colDir] of directions) {
+                 const endRow = row + rowDir;
+                 const endCol = col + colDir;
+                 if (isValidJump(row, col, endRow, endCol)) {
+                     return true;
+                 }
+             }
+             return false;
+         }
+
+         function checkForMandatoryJumps() {
+             for (let row = 0; row < boardSize; row++) {
+                 for (let col = 0; col < boardSize; col++) {
+                     const piece = board[row][col];
+                     if (piece && piece.type === currentPlayer && canJumpFrom(row, col)) {
+                         return true;
+                     }
+                 }
+             }
+             return false;
+         }
+
+         function checkWinCondition() {
+             let redPieces = 0;
+             let blackPieces = 0;
+             for (let row = 0; row < boardSize; row++) {
+                 for (let col = 0; col < boardSize; col++) {
+                     const piece = board[row][col];
+                     if (piece) {
+                         if (piece.type === 'red') redPieces++;
+                         else blackPieces++;
+                     }
+                 }
+             }
+
+             if (redPieces === 0) {
+                 gameStatusElement.innerText = "Black wins!";
+                 // Implement win screen or reset
+             } else if (blackPieces === 0) {
+                 gameStatusElement.innerText = "Red wins!";
+                 // Implement win screen or reset
+             } else {
+                 updateGameStatus(); // Update status if no win
+             }
+         }
+
+         function updateGameStatus() {
+             gameStatusElement.innerText = `Current Player: ${currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1)}`;
+         }
+
+
+        // Initial setup
+        drawBoard();
+        placePieces();
+        mustJump = checkForMandatoryJumps(); // Check for mandatory jumps at the start
+        updateGameStatus(); // Initial status display
+
+    </script>
+</body>
+</html>

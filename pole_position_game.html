@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pole Position Racing Game</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #000;
+            height: 100vh;
+            overflow: hidden;
+        }
+        canvas {
+            border: 3px solid #fff;
+            background: #0a0a0a;
+            box-shadow: 0 0 20px rgba(0,255,0,0.3);
+        }
+        #score {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            font-size: 24px;
+            text-shadow: 0 0 5px #00ff00;
+        }
+    </style>
+</head>
+<body>
+    <div id="score">Score: 0</div>
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('score');
+
+        // Game variables
+        let car = { 
+            x: canvas.width/2 - 25, 
+            y: canvas.height - 100, 
+            width: 50, 
+            height: 80, 
+            speed: 6,
+            color: '#00ff00'
+        };
+        let obstacles = [];
+        let score = 0;
+        let gameOver = false;
+        let keys = { ArrowLeft: false, ArrowRight: false };
+        let roadLines = [];
+        let roadScroll = 0;
+        let obstacleSpeed = 2;  // Start slower
+        let speedIncreaseRate = 0.001;  // Gradual acceleration
+
+        // Initialize road lines
+        for (let i = 0; i < 20; i++) {
+            roadLines.push({ x: 0, y: i * 60 });
+        }
+
+        // Controls
+        document.addEventListener('keydown', (e) => {
+            if (e.key in keys) keys[e.key] = true;
+        });
+        document.addEventListener('keyup', (e) => {
+            if (e.key in keys) keys[e.key] = false;
+        });
+
+        // Obstacle generator
+        function createObstacle() {
+            const type = Math.random() < 0.5 ? 'cone' : 'barrier';
+            const width = type === 'cone' ? 30 : 40;
+            const x = Math.random() * (canvas.width - width);
+            obstacles.push({ 
+                x, 
+                y: -40, 
+                width, 
+                height: type === 'cone' ? 30 : 40,
+                type,
+                color: type === 'cone' ? '#ff6600' : '#ff0000'
+            });
+        }
+
+        // Collision detection
+        function checkCollision(a, b) {
+            return a.x < b.x + b.width &&
+                   a.x + a.width > b.x &&
+                   a.y < b.y + b.height &&
+                   a.y + a.height > b.y;
+        }
+
+        // Draw road
+        function drawRoad() {
+            // Background gradient
+            const bgGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            bgGradient.addColorStop(0, '#000011');
+            bgGradient.addColorStop(1, '#000000');
+            ctx.fillStyle = bgGradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Road edges
+            ctx.fillStyle = '#222';
+            ctx.fillRect(40, 0, canvas.width - 80, canvas.height);
+
+            // Road lines
+            ctx.fillStyle = '#fff';
+            roadLines.forEach(line => {
+                ctx.fillRect(canvas.width/2 - 5, line.y, 10, 30);
+            });
+        }
+
+        // Draw car with details
+        function drawCar() {
+            ctx.save();
+            ctx.translate(car.x + car.width/2, car.y + car.height/2);
+            
+            // Car body
+            ctx.fillStyle = car.color;
+            ctx.beginPath();
+            ctx.moveTo(-20, -30);
+            ctx.lineTo(20, -30);
+            ctx.lineTo(25, -10);
+            ctx.lineTo(25, 25);
+            ctx.lineTo(-25, 25);
+            ctx.lineTo(-25, -10);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Windows
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.moveTo(-15, -20);
+            ctx.lineTo(15, -20);
+            ctx.lineTo(12, 0);
+            ctx.lineTo(-12, 0);
+            ctx.closePath();
+            ctx.fill();
+            
+            // Wheels
+            ctx.fillStyle = '#333';
+            ctx.fillRect(-25, -30, 5, 10);  // Front left
+            ctx.fillRect(20, -30, 5, 10);   // Front right
+            ctx.fillRect(-25, 20, 5, 10);   // Back left
+            ctx.fillRect(20, 20, 5, 10);    // Back right
+            
+            ctx.restore();
+        }
+
+        // Draw obstacle with type-specific shape
+        function drawObstacle(obstacle) {
+            ctx.save();
+            ctx.translate(obstacle.x + obstacle.width/2, obstacle.y + obstacle.height/2);
+            
+            ctx.fillStyle = obstacle.color;
+            
+            if (obstacle.type === 'cone') {
+                // Cone shape
+                ctx.beginPath();
+                ctx.moveTo(-15, 15);
+                ctx.lineTo(0, -15);
+                ctx.lineTo(15, 15);
+                ctx.closePath();
+                ctx.fill();
+                
+                // Cone base
+                ctx.fillStyle = '#663300';
+                ctx.fillRect(-10, 10, 20, 5);
+            } else {
+                // Barrier
+                ctx.beginPath();
+                ctx.rect(-20, -20, 40, 40);
+                ctx.fill();
+                
+                // Reflective stripes
+                ctx.fillStyle = '#ffff00';
+                ctx.fillRect(-20, -15, 40, 5);
+                ctx.fillRect(-20, 10, 40, 5);
+            }
+            
+            ctx.restore();
+        }
+
+        // Update game state
+        function update() {
+            if (gameOver) return;
+
+            // Move car
+            if (keys.ArrowLeft) car.x -= car.speed;
+            if (keys.ArrowRight) car.x += car.speed;
+            
+            // Keep car in bounds
+            car.x = Math.max(40, Math.min(canvas.width - car.width - 40, car.x));
+
+            // Update road scroll
+            roadScroll += 4;
+            if (roadScroll > 60) roadScroll = 0;
+            
+            roadLines.forEach(line => {
+                line.y = (line.y + 4 + roadScroll) % 60 * 20;
+            });
+
+            // Move obstacles with increasing speed
+            obstacles.forEach(obstacle => obstacle.y += obstacleSpeed);
+            
+            // Remove off-screen obstacles
+            obstacles = obstacles.filter(obstacle => obstacle.y < canvas.height);
+
+            // Add new obstacles
+            if (Math.random() < 0.03) createObstacle();
+
+            // Check collisions
+            if (obstacles.some(obstacle => checkCollision(car, obstacle))) {
+                gameOver = true;
+                alert('Game Over! Final Score: ' + score);
+                return;
+            }
+
+            // Update score and increase difficulty
+            score++;
+            scoreDisplay.textContent = 'Score: ' + score;
+            
+            // Gradually increase speed
+            obstacleSpeed += speedIncreaseRate;
+        }
+
+        // Draw everything
+        function draw() {
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw road
+            drawRoad();
+            
+            // Draw obstacles
+            obstacles.forEach(drawObstacle);
+            
+            // Draw car
+            drawCar();
+        }
+
+        // Game loop
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Start game
+        gameLoop();
+    </script>
+</body>
+</html>

@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Briscola — Enhanced Edition</title>
+  <style>
+    :root {
+      /* --- style tokens --- */
+      --card-w: 80px;
+      --card-h: 120px;
+      --gap: 12px;
+      --radius: 8px;
+      --shadow: 2px 2px 6px rgba(0, 0, 0, 0.25);
+      --transition: 200ms ease;
+      --s-swords: #3178ff;
+      --s-clubs: #24a148;
+      --s-cups: #e94e77;
+      --s-coins: #f6b545;
+      --table-bg: #0a6835;
+    }
+
+    /* --------- layout --------- */
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: radial-gradient(circle at 50% 30%, #1c9a52 0%, #0a6835 60%);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 1rem;
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    h1 {
+      margin-top: 0;
+      font-weight: 600;
+      letter-spacing: 0.025em;
+    }
+
+    .game-area {
+      display: grid;
+      grid-template-areas:
+        "computer-hand computer-hand computer-hand"
+        "deck play-area briscola-card"
+        "player-hand player-hand player-hand";
+      gap: var(--gap);
+      justify-items: center;
+      align-items: center;
+      width: 100%;
+      max-width: 900px;
+    }
+
+    /* --------- hands & zones --------- */
+    .hand {
+      display: flex;
+      gap: calc(var(--gap) / 1.5);
+    }
+
+    #computer-hand-area {
+      grid-area: computer-hand;
+    }
+
+    #player-hand-area {
+      grid-area: player-hand;
+    }
+
+    #deck-area {
+      grid-area: deck;
+      position: relative;
+      width: var(--card-w);
+      height: var(--card-h);
+    }
+
+    #briscola-area {
+      grid-area: briscola-card;
+    }
+
+    #play-area {
+      grid-area: play-area;
+      display: flex;
+      gap: var(--gap);
+      min-height: var(--card-h);
+      min-width: calc(var(--card-w) * 2 + var(--gap));
+      justify-content: center;
+      align-items: center;
+    }
+
+    /* dashed target when empty */
+    #play-area:empty::after {
+      content: "Play area";
+      font-size: 0.85rem;
+      color: #ffffff88;
+      border: 2px dashed #ffffff55;
+      border-radius: var(--radius);
+      padding: 1.5rem 2rem;
+    }
+
+    /* --------- card base --------- */
+    .card {
+      width: var(--card-w);
+      height: var(--card-h);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      background: linear-gradient(135deg, #fff 0%, #fff 60%, #f4f4f4 100%);
+      display: grid;
+      grid-template-rows: 1fr 1fr;
+      place-items: center;
+      position: relative;
+      transition: transform var(--transition), filter var(--transition);
+      transform-origin: center bottom;
+    }
+
+    .card.back {
+      background: repeating-linear-gradient(
+          135deg,
+          #4665ff 0 10px,
+          #2d49d8 10px 20px
+        );
+    }
+
+    /* rank & icon */
+    .rank {
+      font-weight: 700;
+      font-size: 1rem;
+    }
+
+    .icon {
+      font-size: 2rem;
+    }
+
+    /* suit colours */
+    .suit-Swords {
+      color: var(--s-swords);
+    }
+    .suit-Clubs {
+      color: var(--s-clubs);
+    }
+    .suit-Cups {
+      color: var(--s-cups);
+    }
+    .suit-Coins {
+      color: var(--s-coins);
+    }
+
+    /* player hand interactions */
+    .player-card {
+      cursor: pointer;
+    }
+    .player-card:hover {
+      transform: translateY(-8%) scale(1.05);
+      filter: drop-shadow(0 4px 6px #0006);
+    }
+
+    /* flip animation when drawn */
+    .flip-in {
+      animation: flipIn 400ms forwards;
+    }
+    @keyframes flipIn {
+      0% {
+        transform: rotateY(90deg);
+        filter: brightness(0.8);
+      }
+      100% {
+        transform: rotateY(0deg);
+      }
+    }
+
+    /* scoreboard & msgs */
+    #scoreboard {
+      margin: 0.5rem 0 0.25rem;
+      font-weight: 600;
+      font-size: 1.1rem;
+    }
+    #messages {
+      min-height: 1.5rem;
+      font-style: italic;
+      margin-top: 0.25rem;
+      text-align: center;
+    }
+
+    /* restart btn */
+    #restart-btn {
+      margin-top: 0.75rem;
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+      border-radius: var(--radius);
+      border: none;
+      background: #fff;
+      color: #0a6835;
+      font-weight: 600;
+      box-shadow: var(--shadow);
+      cursor: pointer;
+      transition: background var(--transition), transform var(--transition);
+    }
+    #restart-btn:hover {
+      background: #f5f5f5;
+      transform: translateY(-2px);
+    }
+  </style>
+</head>
+<body>
+  <h1>Briscola</h1>
+  <div id="scoreboard">Player 0 — Computer 0</div>
+  <div class="game-area">
+    <div id="computer-hand-area" class="hand" aria-label="Computer hand"></div>
+    <div id="deck-area" aria-label="Deck">
+      <!-- stacked backs will be injected here -->
+    </div>
+    <div id="play-area" aria-label="Play area"></div>
+    <div id="briscola-area" aria-label="Briscola card"></div>
+    <div id="player-hand-area" class="hand" aria-label="Your hand"></div>
+  </div>
+  <div id="messages">Loading…</div>
+  <button id="restart-btn" hidden>Play again</button>
+
+  <script>
+    /* ============================== */
+    /*           CONSTANTS            */
+    /* ============================== */
+    const SUITS = ["Swords", "Clubs", "Cups", "Coins"];
+    const RANKS = [
+      "Ace",
+      "3",
+      "King",
+      "Knight",
+      "Jack",
+      "7",
+      "6",
+      "5",
+      "4",
+      "2",
+    ];
+    const VALUES = {
+      Ace: 11,
+      3: 10,
+      King: 4,
+      Knight: 3,
+      Jack: 2,
+      7: 0,
+      6: 0,
+      5: 0,
+      4: 0,
+      2: 0,
+    };
+    const ORDER = {
+      Ace: 9,
+      3: 8,
+      King: 7,
+      Knight: 6,
+      Jack: 5,
+      7: 4,
+      6: 3,
+      5: 2,
+      4: 1,
+      2: 0,
+    };
+    const ICONS = {
+      Swords: "\u2694\uFE0F", // ⚔️
+      Clubs: "\uD83C\uDF3C", // 🌼 (placeholder)
+      Cups: "\uD83C\uDF77", // 🍷
+      Coins: "\uD83D\uDCB0", // 💰
+    };
+
+    /* ============================== */
+    /*            STATE               */
+    /* ============================== */
+    let deck, playerHand, computerHand, briscolaSuit, briscolaCard;
+    let table = []; // sequence of {card, by}
+    let playerPoints = 0,
+      computerPoints = 0;
+    let playerTurn, trickWinner;
+
+    /* ============================== */
+    /*            DOM refs            */
+    /* ============================== */
+    const $ph = document.getElementById("player-hand-area");
+    const $ch = document.getElementById("computer-hand-area");
+    const $deck = document.getElementById("deck-area");
+    const $briscola = document.getElementById("briscola-area");
+    const $play = document.getElementById("play-area");
+    const $score = document.getElementById("scoreboard");
+    const $msg = document.getElementById("messages");
+    const $restart = document.getElementById("restart-btn");
+
+    /* ============================== */
+    /*           UTILITIES            */
+    /* ============================== */
+    const rng = (n) => Math.floor(Math.random() * n);
+
+    function shuffle(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = rng(i + 1);
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+    }
+
+    function makeDeck() {
+      const d = [];
+      for (const s of SUITS) for (const r of RANKS) d.push({ suit: s, rank: r });
+      shuffle(d);
+      return d;
+    }
+
+    function cardValue(c) {
+      return VALUES[c.rank];
+    }
+    function cardOrder(c) {
+      return ORDER[c.rank];
+    }
+
+    /* ============================== */
+    /*            RENDER              */
+    /* ============================== */
+    function el(tag, cls) {
+      const e = document.createElement(tag);
+      if (cls) e.className = cls;
+      return e;
+    }
+
+    function renderCard(card, faceUp = true) {
+      const d = el("div", "card" + (!faceUp ? " back" : ""));
+      if (faceUp) {
+        d.classList.add(`suit-${card.suit}`);
+        const rank = el("div", "rank");
+        rank.textContent = card.rank;
+        const icon = el("div", "icon");
+        icon.textContent = ICONS[card.suit] || "?";
+        d.append(rank, icon);
+      }
+      return d;
+    }
+
+    function layoutHands() {
+      // player
+      $ph.innerHTML = "";
+      playerHand.forEach((c, i) => {
+        const d = renderCard(c, true);
+        d.dataset.idx = i;
+        d.classList.add("player-card");
+        d.addEventListener("click", onPlayerSelect);
+        $ph.append(d);
+      });
+      // computer (backs)
+      $ch.innerHTML = "";
+      computerHand.forEach(() => $ch.append(renderCard({}, false)));
+    }
+
+    function layoutDeck() {
+      $deck.innerHTML = "";
+      const n = deck.length;
+      for (let i = 0; i < Math.min(n, 3); i++) {
+        const b = renderCard({}, false);
+        b.style.position = "absolute";
+        b.style.top = `${i * 2}px`;
+        b.style.left = `${i * 2}px`;
+        $deck.append(b);
+      }
+      if (n === 0) $deck.textContent = "Deck empty";
+    }
+
+    function layoutBriscola() {
+      $briscola.innerHTML = "";
+      if (briscolaCard) {
+        const d = renderCard(briscolaCard, true);
+        d.style.transform = "rotate(90deg) translateX(15%)";
+        d.style.transformOrigin = "center";
+        $briscola.append(d);
+      }
+    }
+
+    function layoutTable() {
+      $play.innerHTML = "";
+      table.forEach((t) => {
+        const d = renderCard(t.card, true);
+        $play.append(d);
+      });
+    }
+
+    function updateScore() {
+      $score.textContent = `Player ${playerPoints} — Computer ${computerPoints}`;
+    }
+
+    /* ============================== */
+    /*        GAME FLOW + AI          */
+    /* ============================== */
+    function initGame() {
+      deck = makeDeck();
+      playerHand = [];
+      computerHand = [];
+      playerPoints = computerPoints = 0;
+      table = [];
+      trickWinner = null;
+      playerTurn = Math.random() < 0.5;
+
+      // deal 3 each, reveal briscola (bottom card)
+      for (let i = 0; i < 3; i++) {
+        playerHand.push(deck.pop());
+        computerHand.push(deck.pop());
+      }
+      briscolaCard = deck.shift(); // bottom after shuffle
+      briscolaSuit = briscolaCard.suit;
+
+      // sort player's hand for convenience
+      sortHand(playerHand);
+
+      layoutEverything();
+      announce(
+        `${playerTurn ? "Your" : "Computer's"} turn — ${
+          briscolaSuit
+        } is briscola.`
+      );
+
+      if (!playerTurn) setTimeout(computerMove, 900);
+    }
+
+    function sortHand(hand) {
+      hand.sort((a, b) => {
+        if (a.suit !== b.suit) return SUITS.indexOf(a.suit) - SUITS.indexOf(b.suit);
+        return ORDER[b.rank] - ORDER[a.rank];
+      });
+    }
+
+    function layoutEverything() {
+      layoutHands();
+      layoutDeck();
+      layoutBriscola();
+      layoutTable();
+      updateScore();
+      $restart.hidden = true;
+    }
+
+    function onPlayerSelect(e) {
+      if (!playerTurn) return;
+      const idx = +e.currentTarget.dataset.idx;
+      playCard(playerHand, idx, "player");
+    }
+
+    function playCard(sourceHand, idx, by) {
+      const [card] = sourceHand.splice(idx, 1);
+      table.push({ card, by });
+      layoutHands();
+      layoutTable();
+
+      if (table.length === 2) {
+        setTimeout(resolveTrick, 700);
+      } else {
+        // switch turn
+        playerTurn = by === "computer";
+        if (!playerTurn) setTimeout(computerMove, 800);
+      }
+    }
+
+    /* --------------- AI --------------- */
+    function computerMove() {
+      if (computerHand.length === 0) return;
+
+      let idx = 0;
+      if (table.length === 0) {
+        // lead: lowest non-briscola
+        const nonB = computerHand.filter((c) => c.suit !== briscolaSuit);
+        if (nonB.length) idx = computerHand.indexOf(lowestValue(nonB));
+        else idx = computerHand.indexOf(lowestValue(computerHand));
+      } else {
+        const playerCard = table[0].card;
+        idx = chooseFollowCard(playerCard);
+      }
+      playCard(computerHand, idx, "computer");
+    }
+
+    function lowestValue(arr) {
+      return arr.reduce((m, c) => (cardValue(c) < cardValue(m) ? c : m));
+    }
+
+    function chooseFollowCard(playerCard) {
+      // simple: win with lowest winning card else lowest card
+      const winning = computerHand.filter((c) => beats(c, playerCard));
+      if (winning.length) {
+        winning.sort((a, b) => cardValue(a) - cardValue(b) || cardOrder(a) - cardOrder(b));
+        return computerHand.indexOf(winning[0]);
+      }
+      // lose
+      const sorted = [...computerHand].sort((a, b) => cardValue(a) - cardValue(b));
+      return computerHand.indexOf(sorted[0]);
+    }
+
+    function beats(c1, c2) {
+      const isB1 = c1.suit === briscolaSuit;
+      const isB2 = c2.suit === briscolaSuit;
+      if (isB1 && !isB2) return true;
+      if (!isB1 && isB2) return false;
+      if (c1.suit === c2.suit) return cardOrder(c1) > cardOrder(c2);
+      return false;
+    }
+
+    /* ----------- TRICK END ----------- */
+    function resolveTrick() {
+      const [first, second] = table;
+      const winner = determineWinner(first, second);
+      const pts = cardValue(first.card) + cardValue(second.card);
+      if (winner.by === "player") playerPoints += pts;
+      else computerPoints += pts;
+      updateScore();
+
+      // brief highlight
+      $play.firstChild.style.filter = winner === first ? "drop-shadow(0 0 6px gold)" : "";
+      $play.lastChild.style.filter = winner === second ? "drop-shadow(0 0 6px gold)" : "";
+
+      setTimeout(() => {
+        table = [];
+        layoutTable();
+        trickWinner = winner.by;
+        dealAfterTrick();
+      }, 800);
+    }
+
+    function determineWinner(a, b) {
+      return beats(a.card, b.card) || (!beats(b.card, a.card) && a.by === "player") ? a : b;
+    }
+
+    /* ----------- DEALING ----------- */
+    function dealAfterTrick() {
+      if (deck.length === 0 && !briscolaCard && playerHand.length === 0) return endGame();
+
+      const first = trickWinner === "player" ? playerHand : computerHand;
+      const second = trickWinner === "player" ? computerHand : playerHand;
+
+      drawTo(first);
+      drawTo(second);
+
+      sortHand(playerHand);
+      layoutEverything();
+
+      playerTurn = trickWinner === "player";
+      announce(`${trickWinner === "player" ? "You" : "Computer"} won ${
+        trickWinner === "player" ? "the" : "its"
+      } trick — ${playerTurn ? "your" : "computer's"} turn.`);
+      if (!playerTurn) setTimeout(computerMove, 1000);
+    }
+
+    function drawTo(hand) {
+      if (deck.length) {
+        const c = deck.pop();
+        hand.push(c);
+      } else if (briscolaCard) {
+        hand.push(briscolaCard);
+        briscolaCard = null;
+      }
+    }
+
+    /* ----------- END GAME ----------- */
+    function endGame() {
+      let text = `Game over! Final score — You: ${playerPoints}  Computer: ${computerPoints}. `;
+      if (playerPoints > computerPoints) text += "You win! 🎉";
+      else if (playerPoints < computerPoints) text += "Computer wins.";
+      else text += "It's a tie.";
+      announce(text);
+      $restart.hidden = false;
+    }
+
+    /* ----------- MISC ----------- */
+    function announce(t) {
+      $msg.textContent = t;
+    }
+
+    $restart.addEventListener("click", initGame);
+
+    /* ----- kick‑off ----- */
+    initGame();
+  </script>
+</body>
+</html>

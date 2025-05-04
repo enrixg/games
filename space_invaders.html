@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Space Invaders</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <style>
+        /* Basic CSS for layout, responsiveness, UI elements */
+        body { 
+            margin: 0; 
+            overflow: hidden; /* Prevent scrolling */
+            background-color: black; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; /* Full viewport height */
+            color: white; /* Default text color */
+            font-family: 'Courier New', Courier, monospace; /* Retro font */
+        }
+        canvas { 
+            display: block; 
+            background-color: black; 
+            /* We'll set canvas size dynamically via JS based on screen */
+            max-width: 100%;
+            max-height: 100%;
+            border: 1px solid white; /* Optional border for visibility */
+        }
+        #ui-container {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 1.5em;
+            pointer-events: none; /* Don't interfere with game touch */
+        }
+        #score {
+            text-align: left;
+        }
+        #lives {
+            text-align: right;
+        }
+        /* Add styles for touch controls overlay if needed later */
+    </style>
+</head>
+<body>
+    <div id="ui-container">
+        <div id="score">SCORE: 0</div>
+        <div id="lives">LIVES: 3</div>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const livesElement = document.getElementById('lives');
+
+        let canvasWidth, canvasHeight;
+        let score = 0;
+        let lives = 3;
+        let gameRunning = true; // Or manage game state more formally later
+        let keys = {}; // Object to track pressed keys
+        let touchLeft = false; // Track touch state for left movement
+        let touchRight = false; // Track touch state for right movement
+        let touchShoot = false; // Track touch state for shooting (tap)
+
+        // --- Game Configuration ---
+        const GAME_WIDTH = 800; // Base internal resolution width
+        const GAME_HEIGHT = 600; // Base internal resolution height
+        const PLAYER_WIDTH = 50; // Player width in game units
+        const PLAYER_HEIGHT = 25; // Player height in game units
+        const PLAYER_SPEED = 300; // Player speed in pixels per second
+        const BULLET_WIDTH = 5;
+        const BULLET_HEIGHT = 15;
+        const BULLET_SPEED = 400; // Pixels per second
+        const BULLET_COOLDOWN = 300; // Milliseconds between shots
+
+        // --- Player State ---
+        const player = {
+            x: GAME_WIDTH / 2 - PLAYER_WIDTH / 2,
+            y: GAME_HEIGHT - PLAYER_HEIGHT - 10, // Position near bottom
+            width: PLAYER_WIDTH,
+            height: PLAYER_HEIGHT,
+            color: 'lime', // Classic green
+            speed: PLAYER_SPEED,
+            lastShotTime: 0 // Track when the last shot was fired
+        };
+
+        // --- Player Bullets State ---
+        let playerBullets = []; // Renamed for clarity
+
+        // --- Alien Bullets State ---
+        let alienBullets = [];
+
+        // --- Barrier Configuration ---
+        const BARRIER_COUNT = 4;
+        const BARRIER_ROWS = 3; // Rows of blocks per barrier
+        const BARRIER_COLS = 10; // Columns of blocks per barrier
+        const BARRIER_BLOCK_WIDTH = 8;
+        const BARRIER_BLOCK_HEIGHT = 8;
+        const BARRIER_COLOR = 'green';
+        const BARRIER_Y_POSITION = GAME_HEIGHT - PLAYER_HEIGHT - 60; // Position above player
+
+        // --- Barrier State ---
+        let barriers = []; // Array to hold all barrier blocks
+
+        // --- Alien Configuration ---
+        const ALIEN_ROWS = 5;
+        const ALIEN_COLS = 11;
+        const ALIEN_WIDTH = 40;
+        const ALIEN_HEIGHT = 30;
+        const ALIEN_PADDING = 15; // Padding between aliens
+        const ALIEN_OFFSET_TOP = 50; // Distance from top
+        const ALIEN_OFFSET_LEFT = 60; // Distance from left
+        const ALIEN_MOVE_SPEED_INITIAL = 50; // Pixels per second
+        const ALIEN_MOVE_INTERVAL_INITIAL = 1000; // Milliseconds between moves initially
+        const ALIEN_SHOOT_PROBABILITY = 0.001; // Probability per alive alien per update cycle (adjust for difficulty)
+        const ALIEN_BULLET_SPEED = 200; // Pixels per second
+        const ALIEN_BULLET_WIDTH = 3;
+        const ALIEN_BULLET_HEIGHT = 10;
+        const ALIEN_BULLET_COLOR = 'red';
+
+
+        // --- Alien State ---
+        let aliens = [];
+        let alienDirection = 1; // 1 for right, -1 for left
+        let alienMoveTimer = ALIEN_MOVE_INTERVAL_INITIAL;
+        let alienSpeed = ALIEN_MOVE_SPEED_INITIAL;
+        let alienMoveInterval = ALIEN_MOVE_INTERVAL_INITIAL; // Current interval, might decrease
+
+        // --- Game Loop ---
+        let lastTime = 0;
+        function gameLoop(timestamp) {
+            if (!gameRunning) return;
+
+            const deltaTime = timestamp - lastTime;
+            lastTime = timestamp;
+
+            update(deltaTime);
+            draw();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // --- Update Game State ---
+        function update(deltaTime) {
+            // DeltaTime is in milliseconds, convert to seconds for speed calculation
+            const dtSeconds = deltaTime / 1000;
+
+            // Player Movement (Keyboard OR Touch)
+            if (keys['ArrowLeft'] || keys['a'] || touchLeft) {
+                player.x -= player.speed * dtSeconds;
+            }
+            if (keys['ArrowRight'] || keys['d'] || touchRight) {
+                player.x += player.speed * dtSeconds;
+            }
+
+            // Keep player within bounds
+            if (player.x < 0) {
+                player.x = 0;
+            }
+            if (player.x + player.width > GAME_WIDTH) {
+                player.x = GAME_WIDTH - player.width;
+            }
+
+            // Handle Shooting Input (Keyboard OR Touch)
+            if (keys[' '] || keys['Spacebar'] || touchShoot) {
+                shoot();
+                touchShoot = false; // Reset touch shoot flag after firing once per tap
+            }
+
+            // Update Player Bullets
+            updatePlayerBullets(dtSeconds); // Renamed function call
+
+            // Update Aliens
+            updateAliens(deltaTime, dtSeconds); // Pass dtSeconds for shooting probability
+
+            // Update Alien Bullets
+            updateAlienBullets(dtSeconds); // Add this call
+
+            // Check for level clear
+            checkLevelClear();
+
+            // Check if aliens reached bottom
+            checkGameOverCondition();
+        }
+
+        // --- Shoot Player Bullet ---
+        function shoot() { // Renamed function
+            const now = performance.now();
+            if (now - player.lastShotTime > BULLET_COOLDOWN) {
+                const playerBullet = { // Renamed variable
+                    x: player.x + player.width / 2 - BULLET_WIDTH / 2, // Center of player
+                    y: player.y - BULLET_HEIGHT, // Just above player
+                    width: BULLET_WIDTH,
+                    height: BULLET_HEIGHT,
+                    color: 'white',
+                    speed: BULLET_SPEED
+                };
+                playerBullets.push(playerBullet); // Use renamed array (Corrected)
+                player.lastShotTime = now;
+            }
+        }
+
+        // --- Update Player Bullets ---
+        function updatePlayerBullets(dtSeconds) { // Renamed function
+            for (let i = playerBullets.length - 1; i >= 0; i--) { // Use renamed array
+                const bullet = playerBullets[i]; // Use renamed array
+                bullet.y -= bullet.speed * dtSeconds;
+
+                // Check for collision with aliens
+                let hitAlien = false;
+                for (let j = aliens.length - 1; j >= 0; j--) {
+                    const alien = aliens[j];
+                    if (alien.alive && checkCollision(bullet, alien)) {
+                        alien.alive = false; // Mark alien as dead
+                        score += alien.points; // Add points
+                        playerBullets.splice(i, 1); // Remove bullet from correct array
+                        hitAlien = true;
+                        // TODO: Add explosion effect later if desired
+                        // TODO: Add logic to speed up aliens later
+                        break; // Bullet can only hit one alien
+                    }
+                }
+
+                // Check for collision with barriers if bullet hasn't hit an alien
+                if (!hitAlien) {
+                    for (let k = barriers.length - 1; k >= 0; k--) {
+                        const block = barriers[k];
+                        if (block.alive && checkCollision(bullet, block)) {
+                            block.alive = false; // Destroy barrier block
+                            playerBullets.splice(i, 1); // Remove bullet
+                            hitAlien = true; // Set flag to prevent off-screen removal check
+                            break; // Bullet hits one block, stop checking barriers for this bullet
+                        }
+                    }
+                }
+
+                // Remove bullet if it goes off-screen (top) and hasn't hit anything
+                if (!hitAlien && bullet.y + bullet.height < 0) {
+                    playerBullets.splice(i, 1); // Use renamed array
+                }
+            }
+        }
+
+        // --- Collision Detection (Axis-Aligned Bounding Box) ---
+        function checkCollision(rect1, rect2) {
+            return (
+                rect1.x < rect2.x + rect2.width &&
+                rect1.x + rect1.width > rect2.x &&
+                rect1.y < rect2.y + rect2.height &&
+                rect1.y + rect1.height > rect2.y
+            );
+        }
+
+
+        // --- Update Aliens ---
+        function updateAliens(deltaTime, dtSeconds) { // Added dtSeconds parameter
+            alienMoveTimer -= deltaTime;
+
+            // Alien Movement Logic
+            if (alienMoveTimer <= 0) {
+                let moveDown = false;
+                let furthestLeft = GAME_WIDTH;
+                let furthestRight = 0;
+
+                // Calculate current bounds and check if edge is hit
+                aliens.forEach(alien => {
+                    if (alien.alive) {
+                         furthestLeft = Math.min(furthestLeft, alien.x);
+                         furthestRight = Math.max(furthestRight, alien.x + alien.width);
+                    }
+                });
+
+                // Calculate next horizontal position
+                const nextHorizontalMove = alienDirection * alienSpeed * (alienMoveInterval / 1000); // Simulate move distance
+
+                if (alienDirection === 1 && (furthestRight + nextHorizontalMove) > GAME_WIDTH) {
+                    alienDirection = -1;
+                    moveDown = true;
+                } else if (alienDirection === -1 && (furthestLeft + nextHorizontalMove) < 0) {
+                    alienDirection = 1;
+                    moveDown = true;
+                }
+
+                // Move aliens
+                aliens.forEach(alien => {
+                    if (alien.alive) {
+                        if (moveDown) {
+                            alien.y += ALIEN_HEIGHT / 2; // Move down by half height
+                        } else {
+                            alien.x += nextHorizontalMove;
+                        }
+                        // Check if any alien reached the barrier level or below
+                        if (alien.y + alien.height >= BARRIER_Y_POSITION) {
+                             gameOver(); // Trigger game over if aliens get too low
+                             return; // Stop further alien updates this frame
+                        }
+                    }
+                });
+
+                // Reset timer for next move
+                // Potentially decrease alienMoveInterval here to speed up game
+                alienMoveTimer = alienMoveInterval;
+            }
+
+            // Alien Shooting Logic (independent of movement timer)
+            aliens.forEach(alien => {
+                if (alien.alive && Math.random() < ALIEN_SHOOT_PROBABILITY) {
+                    // Basic check: ensure only bottom-most alien in a column can shoot
+                    let canShoot = true;
+                    for (let otherAlien of aliens) {
+                        if (otherAlien.alive &&
+                            otherAlien !== alien && // Not the same alien
+                            Math.abs(otherAlien.x - alien.x) < alien.width / 2 && // Roughly same column
+                            otherAlien.y > alien.y) { // Other alien is below this one
+                            canShoot = false;
+                            break;
+                        }
+                    }
+
+                    if (canShoot) {
+                        alienShoot(alien);
+                    }
+                }
+            });
+        }
+
+        // --- Alien Shoot ---
+        function alienShoot(alien) {
+            const alienBullet = {
+                x: alien.x + alien.width / 2 - ALIEN_BULLET_WIDTH / 2,
+                y: alien.y + alien.height, // Start below the alien
+                width: ALIEN_BULLET_WIDTH,
+                height: ALIEN_BULLET_HEIGHT,
+                color: ALIEN_BULLET_COLOR,
+                speed: ALIEN_BULLET_SPEED
+            };
+            alienBullets.push(alienBullet);
+        }
+
+        // --- Update Alien Bullets ---
+        function updateAlienBullets(dtSeconds) {
+            for (let i = alienBullets.length - 1; i >= 0; i--) {
+                const bullet = alienBullets[i];
+                bullet.y += bullet.speed * dtSeconds; // Move down
+
+                let hitPlayer = false;
+                // Check collision with player
+                if (checkCollision(bullet, player)) {
+                    alienBullets.splice(i, 1); // Remove bullet
+                    handlePlayerHit();
+                    hitPlayer = true;
+                    // break; // Don't break here, bullet might hit barrier too
+                }
+
+                // Check collision with barriers if player wasn't hit
+                if (!hitPlayer) {
+                     for (let k = barriers.length - 1; k >= 0; k--) {
+                        const block = barriers[k];
+                        if (block.alive && checkCollision(bullet, block)) {
+                            block.alive = false; // Destroy barrier block
+                            alienBullets.splice(i, 1); // Remove bullet
+                            hitPlayer = true; // Set flag to prevent off-screen removal check
+                            break; // Bullet hits one block, stop checking barriers for this bullet
+                        }
+                    }
+                }
+
+
+                // Remove bullet if it goes off-screen (bottom) and hasn't hit anything
+                if (!hitPlayer && bullet.y > GAME_HEIGHT) {
+                    alienBullets.splice(i, 1);
+                }
+            }
+        }
+
+        // --- Handle Player Hit ---
+        function handlePlayerHit() {
+            lives--;
+            console.log(`Player hit! Lives remaining: ${lives}`);
+            // TODO: Add visual effect for hit (e.g., flash player)
+            // TODO: Add temporary invincibility?
+            if (lives <= 0) {
+                gameOver();
+            } else {
+                // Optional: Reset player position? Or just continue
+            }
+        }
+
+        // --- Game Over ---
+        function gameOver() {
+            if (!gameRunning) return; // Prevent multiple calls
+            console.log("GAME OVER");
+            gameRunning = false;
+            // Draw Game Over message immediately (will be drawn over in next frame if not stopped)
+            drawGameOverMessage();
+        }
+
+        // --- Check Level Clear ---
+        function checkLevelClear() {
+            const allAliensDead = aliens.every(alien => !alien.alive);
+            if (allAliensDead && aliens.length > 0) { // Ensure grid was populated
+                console.log("Level Cleared!");
+                // Increase difficulty slightly (example: faster movement)
+                alienMoveInterval = Math.max(100, alienMoveInterval * 0.9); // Decrease interval, minimum 100ms
+                alienSpeed *= 1.1; // Increase speed slightly
+
+                // Reset for next level
+                playerBullets = []; // Clear player bullets
+                alienBullets = []; // Clear alien bullets
+                createAlienGrid(); // Create new wave
+                // Optionally recreate barriers or leave them damaged
+                // createBarriers(); // Uncomment to fully reset barriers each level
+            }
+        }
+
+        // --- Check Game Over Condition (Aliens Reaching Bottom) ---
+        function checkGameOverCondition() {
+             aliens.forEach(alien => {
+                if (alien.alive && alien.y + alien.height >= player.y) {
+                    gameOver();
+                    return;
+                }
+            });
+        }
+
+
+        // --- Create Alien Grid ---
+        function createAlienGrid() {
+            aliens = []; // Clear existing aliens
+            for (let row = 0; row < ALIEN_ROWS; row++) {
+                for (let col = 0; col < ALIEN_COLS; col++) {
+                    const alien = {
+                        x: ALIEN_OFFSET_LEFT + col * (ALIEN_WIDTH + ALIEN_PADDING),
+                        y: ALIEN_OFFSET_TOP + row * (ALIEN_HEIGHT + ALIEN_PADDING),
+                        width: ALIEN_WIDTH,
+                        height: ALIEN_HEIGHT,
+                        color: row < 1 ? 'pink' : (row < 3 ? 'cyan' : 'yellow'), // Different colors per row (example)
+                        alive: true,
+                        points: row < 1 ? 30 : (row < 3 ? 20 : 10) // Points based on row
+                    };
+                    aliens.push(alien);
+                }
+            }
+            console.log(`Created ${aliens.length} aliens.`);
+        }
+
+
+        // --- Draw Everything ---
+        function draw() {
+            // Clear canvas
+            ctx.fillStyle = 'black';
+            ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+            // Scale drawing based on canvas size vs game size
+            const scaleX = canvasWidth / GAME_WIDTH;
+            const scaleY = canvasHeight / GAME_HEIGHT;
+
+            // Draw Player
+            drawPlayer(scaleX, scaleY);
+
+            // Draw Player Bullets
+            drawPlayerBullets(scaleX, scaleY); // Renamed function call
+
+            // Draw Alien Bullets
+            drawAlienBullets(scaleX, scaleY); // Add this call
+
+            // Draw Aliens
+            drawAliens(scaleX, scaleY);
+
+            // Draw Barriers
+            drawBarriers(scaleX, scaleY);
+
+            // Update UI elements directly
+            scoreElement.textContent = `SCORE: ${score}`;
+            livesElement.textContent = `LIVES: ${lives}`;
+
+            // Draw Game Over message if applicable
+            if (!gameRunning && lives <= 0) {
+                 drawGameOverMessage();
+            }
+        }
+
+        // --- Draw Player ---
+        function drawPlayer(scaleX, scaleY) {
+            ctx.fillStyle = player.color;
+            // Scale position and size for drawing
+            ctx.fillRect(player.x * scaleX, player.y * scaleY, player.width * scaleX, player.height * scaleY);
+        }
+
+        // --- Draw Player Bullets ---
+        function drawPlayerBullets(scaleX, scaleY) { // Renamed function
+            ctx.fillStyle = 'white';
+            playerBullets.forEach(bullet => { // Use renamed array (Corrected)
+                ctx.fillRect(bullet.x * scaleX, bullet.y * scaleY, bullet.width * scaleX, bullet.height * scaleY);
+            });
+        }
+
+         // --- Draw Alien Bullets ---
+        function drawAlienBullets(scaleX, scaleY) {
+            ctx.fillStyle = ALIEN_BULLET_COLOR;
+            alienBullets.forEach(bullet => {
+                ctx.fillRect(bullet.x * scaleX, bullet.y * scaleY, bullet.width * scaleX, bullet.height * scaleY);
+            });
+        }
+
+        // --- Draw Aliens ---
+        function drawAliens(scaleX, scaleY) {
+             aliens.forEach(alien => {
+                if (alien.alive) {
+                    ctx.fillStyle = alien.color;
+                    ctx.fillRect(alien.x * scaleX, alien.y * scaleY, alien.width * scaleX, alien.height * scaleY);
+                    // Later: Replace rect with pixel art drawing
+                }
+            });
+        }
+
+        // --- Draw Barriers ---
+        function drawBarriers(scaleX, scaleY) {
+            ctx.fillStyle = BARRIER_COLOR;
+            barriers.forEach(block => {
+                if (block.alive) {
+                    ctx.fillRect(block.x * scaleX, block.y * scaleY, block.width * scaleX, block.height * scaleY);
+                }
+            });
+        }
+
+        // --- Draw Game Over Message ---
+        function drawGameOverMessage() {
+            const scaleX = canvasWidth / GAME_WIDTH;
+            const scaleY = canvasHeight / GAME_HEIGHT;
+            ctx.fillStyle = 'red';
+            ctx.font = `${50 * scaleX}px 'Courier New', Courier, monospace`; // Scale font size
+            ctx.textAlign = 'center';
+            ctx.fillText('GAME OVER', canvasWidth / 2, canvasHeight / 2);
+        }
+
+
+        // --- Resize Canvas ---
+        function resizeCanvas() {
+            const aspectRatio = GAME_WIDTH / GAME_HEIGHT;
+            const windowWidth = window.innerWidth;
+            const windowHeight = window.innerHeight;
+            const windowAspectRatio = windowWidth / windowHeight;
+
+            if (windowAspectRatio > aspectRatio) {
+                // Window is wider than game aspect ratio
+                canvasHeight = windowHeight * 0.9; // Use 90% of height
+                canvasWidth = canvasHeight * aspectRatio;
+            } else {
+                // Window is taller or equal aspect ratio
+                canvasWidth = windowWidth * 0.9; // Use 90% of width
+                canvasHeight = canvasWidth / aspectRatio;
+            }
+
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+
+            // Adjust font size based on canvas size if needed
+            const baseFontSize = 1.5; // em
+            const scaleFactor = canvasWidth / GAME_WIDTH; // Scale based on width
+            document.getElementById('ui-container').style.fontSize = `${baseFontSize * scaleFactor * 1.5}em`; // Adjust multiplier as needed
+
+
+            // Redraw immediately after resize
+            if (gameRunning) {
+                 draw(); // Redraw static elements if needed
+            }
+        }
+
+        // --- Initialization ---
+        function init() {
+            console.log("Initializing game...");
+            resizeCanvas(); // Set initial size
+            window.addEventListener('resize', resizeCanvas);
+
+            // --- Input Handling ---
+            window.addEventListener('keydown', (e) => {
+                keys[e.key] = true;
+                // Prevent default browser actions for arrow keys if needed
+                if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', ' '].includes(e.key)) {
+                    e.preventDefault();
+                }
+            });
+            window.addEventListener('keyup', (e) => {
+                keys[e.key] = false;
+            });
+
+            // --- Touch Input Handling ---
+            canvas.addEventListener('touchstart', (e) => {
+                e.preventDefault(); // Prevent scrolling/zooming
+                handleTouch(e.touches);
+            }, { passive: false }); // Need passive: false to call preventDefault
+
+            canvas.addEventListener('touchmove', (e) => {
+                 e.preventDefault();
+                 handleTouch(e.touches);
+            }, { passive: false });
+
+            canvas.addEventListener('touchend', (e) => {
+                 e.preventDefault();
+                 // If last touch ended, clear movement flags
+                 if (e.touches.length === 0) {
+                     touchLeft = false;
+                     touchRight = false;
+                 } else {
+                     // Handle remaining touches if multi-touch was involved
+                     handleTouch(e.touches);
+                 }
+            });
+
+             canvas.addEventListener('touchcancel', (e) => {
+                 // Treat cancel the same as touchend
+                 touchLeft = false;
+                 touchRight = false;
+             });
+
+            function handleTouch(touches) {
+                // Reset movement flags before processing current touches
+                touchLeft = false;
+                touchRight = false;
+                let shootTap = false;
+
+                for (let i = 0; i < touches.length; i++) {
+                    const touch = touches[i];
+                    const touchX = touch.clientX; // Get touch X coordinate
+
+                    // Simple tap detection (could be refined)
+                    // If a touch starts and ends quickly in roughly the same spot, consider it a tap
+                    // For simplicity here, we'll just trigger a shot on any touch start/move for now
+                    shootTap = true; // Set flag to shoot
+
+                    // Movement based on screen half
+                    if (touchX < window.innerWidth / 2) {
+                        touchLeft = true;
+                    } else {
+                        touchRight = true;
+                    }
+                }
+                 // Set the global shoot flag if any touch detected it
+                 if (shootTap) {
+                    touchShoot = true;
+                 }
+            }
+
+            // --- Create Barriers ---
+            function createBarriers() {
+                barriers = []; // Clear existing barriers
+                const totalBarrierWidth = BARRIER_COLS * BARRIER_BLOCK_WIDTH;
+                const totalSpacing = GAME_WIDTH - (BARRIER_COUNT * totalBarrierWidth);
+                const spacingBetweenBarriers = totalSpacing / (BARRIER_COUNT + 1);
+
+                for (let i = 0; i < BARRIER_COUNT; i++) {
+                    const barrierStartX = spacingBetweenBarriers * (i + 1) + totalBarrierWidth * i;
+                    for (let row = 0; row < BARRIER_ROWS; row++) {
+                        for (let col = 0; col < BARRIER_COLS; col++) {
+                            // Simple rectangular barrier shape for now
+                            // TODO: Could carve out the bottom middle later for classic shape
+                            const block = {
+                                x: barrierStartX + col * BARRIER_BLOCK_WIDTH,
+                                y: BARRIER_Y_POSITION + row * BARRIER_BLOCK_HEIGHT,
+                                width: BARRIER_BLOCK_WIDTH,
+                                height: BARRIER_BLOCK_HEIGHT,
+                                alive: true
+                            };
+                            barriers.push(block);
+                        }
+                    }
+                }
+                 console.log(`Created ${barriers.length} barrier blocks across ${BARRIER_COUNT} barriers.`);
+            }
+
+
+            // Create initial alien formation
+            createAlienGrid();
+            // Create initial barriers
+            createBarriers();
+
+            // Start the game loop
+            lastTime = performance.now();
+            requestAnimationFrame(gameLoop);
+            console.log("Game loop started.");
+        }
+
+        // --- Start the game ---
+        init();
+
+    </script>
+</body>
+</html>

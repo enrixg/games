@@ -1,0 +1,94 @@
+P<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reflex Game</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #fff;
+            font-family: sans-serif;
+            text-align: center;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        #game-area {
+            font-size: 2em;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-area">
+        Click anywhere to start
+    </div>
+
+    <script>
+        const gameArea = document.getElementById('game-area');
+        const sound = new Audio('ding.mp3'); // Assuming a sound file named ding.mp3 exists
+        let startTime;
+        let endTime;
+        let timeoutId;
+        let gameState = 'start'; // 'start', 'wait-color', 'click-color', 'wait-sound', 'click-sound'
+
+        gameArea.addEventListener('click', handleClick);
+
+        function handleClick() {
+            if (gameState === 'start') {
+                startGame();
+            } else if (gameState === 'wait-color') {
+                // Too early for color test
+                clearTimeout(timeoutId);
+                gameArea.style.backgroundColor = '#fff';
+                gameArea.textContent = 'Too early! Click to try again.';
+                gameState = 'start';
+            } else if (gameState === 'click-color') {
+                // Reaction time for color test
+                endTime = new Date().getTime();
+                const reactionTime = endTime - startTime;
+                gameArea.style.backgroundColor = '#fff';
+                gameArea.textContent = `Color reaction time: ${reactionTime} ms.`;
+                gameState = 'wait-sound';
+                setTimeout(() => {
+                    gameArea.textContent = 'Wait for sound...';
+                    const delay = Math.random() * 2000 + 1000; // Random delay between 1 and 3 seconds
+                    timeoutId = setTimeout(() => {
+                        sound.play();
+                        gameArea.textContent = 'Click after sound!';
+                        startTime = new Date().getTime();
+                        gameState = 'click-sound';
+                    }, delay);
+                }, 1500); // Delay before starting sound test
+            } else if (gameState === 'wait-sound') {
+                 // Too early for sound test
+                clearTimeout(timeoutId);
+                gameArea.textContent = 'Too early! Click to try again.';
+                gameState = 'start';
+            } else if (gameState === 'click-sound') {
+                // Reaction time for sound test
+                endTime = new Date().getTime();
+                const reactionTime = endTime - startTime;
+                gameArea.textContent = `Sound reaction time: ${reactionTime} ms. Click to play again.`;
+                gameState = 'start';
+            }
+        }
+
+        function startGame() {
+            gameArea.textContent = 'Wait for green...';
+            const delay = Math.random() * 2000 + 1000; // Random delay between 1 and 3 seconds
+            timeoutId = setTimeout(() => {
+                gameArea.style.backgroundColor = 'green';
+                gameArea.textContent = 'Click!';
+                startTime = new Date().getTime();
+                gameState = 'click-color';
+            }, delay);
+            gameArea.style.backgroundColor = 'red'; // Indicate waiting
+            gameState = 'wait-color';
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dice Roller</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        #result {
+            font-size: 48px;
+            margin-top: 20px;
+        }
+        .roll-animation {
+            animation: roll 1s;
+        }
+        @keyframes roll {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+    <h1>Dice Roller</h1>
+    <select id="dice-type">
+        <option value="4">d4</option>
+        <option value="6">d6</option>
+        <option value="8">d8</option>
+        <option value="10">d10</option>
+        <option value="12">d12</option>
+        <option value="20">d20</option>
+        <option value="100">d100</option>
+    </select>
+    <input type="number" id="custom-dice" placeholder="Custom sides">
+    <button onclick="rollDice()">Roll</button>
+    <div id="result"></div>
+
+    <script>
+        function rollDice() {
+            const diceType = document.getElementById('dice-type');
+            const customDice = document.getElementById('custom-dice');
+            let sides = parseInt(diceType.value);
+            if (customDice.value) {
+                sides = parseInt(customDice.value);
+            }
+            if (isNaN(sides) || sides < 1) {
+                alert('Invalid dice sides');
+                return;
+            }
+            const result = Math.floor(Math.random() * sides) + 1;
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerText = result;
+            resultDiv.classList.add('roll-animation');
+            setTimeout(() => {
+                resultDiv.classList.remove('roll-animation');
+            }, 1000);
+        }
+    </script>
+</body>
+</html>

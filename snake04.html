@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Neon Futuristic Snake</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-color: #0a0a10;
+      --neon-primary: #ff0080;
+      --neon-secondary: #00fff0;
+      --neon-accent: #fffb00;
+      --scan-opacity: 0.04;
+      --grid-width: 32;
+      --grid-height: 18;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body, html { width: 100%; height: 100%; overflow: hidden; background: var(--bg-color); font-family: 'Orbitron', sans-serif; }
+    #game { display: block; margin: auto; background: var(--bg-color); image-rendering: pixelated; }
+    #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+    #scanlines { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: repeating-linear-gradient(transparent, transparent 1px, rgba(0,0,0,var(--scan-opacity)) 1px, rgba(0,0,0,var(--scan-opacity)) 2px); pointer-events: none; }
+    #ui { position: absolute; top: 10px; left: 10px; color: var(--neon-primary); text-shadow: 0 0 8px var(--neon-primary); }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="960" height="540"></canvas>
+  <div id="overlay">
+    <div id="scanlines"></div>
+  </div>
+  <div id="ui">Score: <span id="score">0</span></div>
+  <script>
+  (() => {
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('score');
+    const W = canvas.width, H = canvas.height;
+    const GW = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--grid-width'));
+    const GH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--grid-height'));
+    const cellW = W / GW, cellH = H / GH;
+
+    // offscreen for bloom
+    const off = document.createElement('canvas');
+    off.width = W; off.height = H;
+    const offCtx = off.getContext('2d');
+
+    // Game state
+    let snake, dir, nextDir, apple, particles, score;
+    const speeds = { base: 6, inc: 0.5, interval: 5 };
+
+    class Vec { constructor(x,y){this.x=x;this.y=y;} }
+    class Particle { constructor(x,y,dx,dy){this.x=x;this.y=y;this.dx=dx;this.dy=dy;this.life=1;} update(dt){this.x+=this.dx*dt; this.y+=this.dy*dt; this.life -= dt;} draw(ctx){ctx.globalAlpha=this.life; ctx.fillRect(this.x,this.y,2,2);} }
+
+    function reset(){
+      snake = [new Vec(GW/2, GH/2)];
+      dir = new Vec(1,0); nextDir = dir;
+      spawnApple(); particles = [];
+      score = 0; scoreEl.textContent = score;
+      lastTime = performance.now(); speed = speeds.base;
+      state = 'RUN';
+    }
+
+    function spawnApple(){
+      apple = new Vec(Math.floor(Math.random()*GW), Math.floor(Math.random()*GH));
+    }
+
+    function update(dt){
+      // input
+      dir = nextDir;
+      // move at discrete intervals
+      dist += dt * speed;
+      if(dist >= 1){
+        dist -= 1;
+        // move
+        const head = snake[0];
+        const nx = (head.x + dir.x + GW) % GW;
+        const ny = (head.y + dir.y + GH) % GH;
+        snake.unshift(new Vec(nx, ny));
+        if(nx === apple.x && ny === apple.y){
+          score++; scoreEl.textContent = score;
+          spawnApple();
+          // speedup
+          if(score % speeds.interval === 0) speed += speeds.inc;
+          // particles
+          for(let i=0;i<20;i++) particles.push(new Particle((nx+0.5)*cellW,(ny+0.5)*cellH,(Math.random()-0.5)*100,(Math.random()-0.5)*100));
+        } else {
+          snake.pop();
+        }
+        // collision
+        for(let i=1;i<snake.length;i++){
+          if(snake[i].x===nx && snake[i].y===ny){ state='END'; break; }
+        }
+      }
+      // particles
+      particles = particles.filter(p=>p.life>0);
+      particles.forEach(p=>p.update(dt));
+    }
+
+    function render(){
+      offCtx.clearRect(0,0,W,H);
+      offCtx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--neon-secondary');
+      snake.forEach((seg,i)=>{
+        const alpha = 1 - i/snake.length;
+        offCtx.globalAlpha = alpha;
+        offCtx.fillRect(seg.x*cellW, seg.y*cellH, cellW, cellH);
+      });
+      offCtx.globalAlpha = 1;
+      offCtx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--neon-accent');
+      offCtx.fillRect(apple.x*cellW, apple.y*cellH, cellW, cellH);
+      particles.forEach(p=>p.draw(offCtx));
+
+      // bloom: draw blurred
+      ctx.clearRect(0,0,W,H);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.filter = 'blur(8px)';
+      ctx.drawImage(off,0,0);
+      ctx.filter = 'none';
+      ctx.globalCompositeOperation = 'source-over';
+      // draw core
+      ctx.drawImage(off,0,0);
+    }
+
+    function loop(t){
+      const now = performance.now();
+      const dt = (now - lastTime)/1000;
+      lastTime = now;
+      if(state==='RUN'){
+        update(dt);
+        render();
+      } else if(state==='END'){
+        // game over
+        ctx.fillStyle = 'rgba(10,10,16,0.6)'; ctx.fillRect(0,0,W,H);
+        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--neon-primary');
+        ctx.font = '48px Orbitron'; ctx.textAlign='center';
+        ctx.fillText('GAME OVER', W/2, H/2 - 20);
+        ctx.fillText('Press R to Restart', W/2, H/2 + 40);
+      }
+      requestAnimationFrame(loop);
+    }
+
+    // controls
+    window.addEventListener('keydown', e=>{
+      const k = e.key;
+      if(state==='RUN'){
+        if((k==='ArrowUp'||k==='w') && dir.y===0) nextDir = new Vec(0,-1);
+        if((k==='ArrowDown'||k==='s') && dir.y===0) nextDir = new Vec(0,1);
+        if((k==='ArrowLeft'||k==='a') && dir.x===0) nextDir = new Vec(-1,0);
+        if((k==='ArrowRight'||k==='d') && dir.x===0) nextDir = new Vec(1,0);
+      }
+      if(state==='END' && (k==='r' || k==='R')) reset();
+    });
+
+    let lastTime=0, state='INIT', dist=0, speed=0;
+    reset();
+    requestAnimationFrame(loop);
+  })();
+  </script>
+</body>
+</html>

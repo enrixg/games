@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Game Score Tracker</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React & ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <!-- Babel for JSX support -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-gray-900">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useRef, useEffect } = React;
+
+    function GameScoreTracker() {
+      const [players, setPlayers] = useState([]);
+      const [newPlayerName, setNewPlayerName] = useState('');
+      const [lowestScoreWins, setLowestScoreWins] = useState(false);
+      const [history, setHistory] = useState([]);
+
+      const addPlayerDialog = useRef(null);
+      const modeDialog = useRef(null);
+      const resultsDialog = useRef(null);
+
+      useEffect(() => {
+        if (modeDialog.current) modeDialog.current.showModal();
+      }, []);
+
+      const addPlayer = () => {
+        if (newPlayerName.trim()) {
+          const newPlayer = {
+            id: players.length + 1,
+            name: newPlayerName.trim(),
+            total: 0,
+            lastHand: 0,
+            currentScore: 0
+          };
+          setPlayers([...players, newPlayer]);
+          setNewPlayerName('');
+          addPlayerDialog.current.close();
+        }
+      };
+
+      const removePlayer = id => setPlayers(players.filter(p => p.id !== id));
+      const updatePlayerScore = (id, score) => {
+        setPlayers(players.map(p => p.id === id ? { ...p, currentScore: parseInt(score) || 0 } : p));
+      };
+      const updatePlayerName = (id, name) => {
+        setPlayers(players.map(p => p.id === id ? { ...p, name } : p));
+      };
+
+      const calculateTotals = () => {
+        setHistory([...history, players.map(p => ({ ...p }))]);
+        setPlayers(players.map(p => ({
+          ...p,
+          total: p.total + p.currentScore,
+          lastHand: p.currentScore,
+          currentScore: 0
+        })));
+      };
+
+      const undoLastRound = () => {
+        if (history.length) {
+          setPlayers(history[history.length - 1]);
+          setHistory(history.slice(0, -1));
+        }
+      };
+
+      const clearScores = () => {
+        setPlayers(players.map(p => ({ ...p, currentScore: 0 })));
+      };
+
+      const newGame = () => {
+        setPlayers(players.map(p => ({ ...p, total: 0, lastHand: 0, currentScore: 0 })));
+        setHistory([]);
+      };
+
+      const getOrdinalSuffix = i => {
+        const j = i % 10, k = i % 100;
+        if (j === 1 && k !== 11) return 'st';
+        if (j === 2 && k !== 12) return 'nd';
+        if (j === 3 && k !== 13) return 'rd';
+        return 'th';
+      };
+
+      const getSortedPlayers = () => [...players].sort((a, b) =>
+        lowestScoreWins ? a.total - b.total : b.total - a.total
+      );
+
+      return (
+        <div className="flex flex-col h-screen max-w-sm mx-auto">
+          {/* Header */}
+          <div className="bg-blue-600 p-3 flex justify-between items-center">
+            <div className="w-6 h-6"></div>
+            <div className="text-white text-center">
+              <h1 className="text-lg font-semibold">Game Calc</h1>
+              <div className="text-xs text-white/80 flex items-center justify-center gap-1">
+                {lowestScoreWins ? '↓' : '↑'} {lowestScoreWins ? 'Low Wins' : 'High Wins'}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button className="p-1 text-white hover:bg-blue-700 rounded" onClick={() => modeDialog.current.showModal()}>⟳</button>
+              <button className="p-1 text-white hover:bg-blue-700 rounded" onClick={() => addPlayerDialog.current.showModal()}>+</button>
+            </div>
+          </div>
+
+          {/* Score Table Header */}
+          <div className="grid grid-cols-12 bg-gray-700 p-2 text-white text-xs">
+            <div className="col-span-6">Name</div>
+            <div className="col-span-2 text-center">Tot</div>
+            <div className="col-span-2 text-center">Last</div>
+            <div className="col-span-2 text-center">Cur</div>
+          </div>
+
+          {/* Players List */}
+          <div className="flex-1 overflow-auto bg-gray-900">
+            {players.length === 0 ? (
+              <div className="text-gray-400 text-center p-6 text-sm">Tap + to add</div>
+            ) : (
+              getSortedPlayers().map((player, idx) => (
+                <div key={player.id} className="grid grid-cols-12 border-b border-gray-700 p-2 items-center text-white text-sm">
+                  <div className="col-span-6 flex items-center gap-2">
+                    <div className="w-6 h-6 bg-gray-600 rounded-full flex items-center justify-center text-xs font-bold">{idx+1}</div>
+                    <input type="text" value={player.name} onChange={e => updatePlayerName(player.id, e.target.value)} className="bg-transparent outline-none flex-1 text-white text-sm" />
+                    <button onClick={() => removePlayer(player.id)} className="text-gray-400 hover:text-white text-sm">✕</button>
+                  </div>
+                  <div className="col-span-2 text-center">{player.total}</div>
+                  <div className="col-span-2 text-center text-orange-400">{player.lastHand}</div>
+                  <div className="col-span-2 text-center">
+                    <input type="number" value={player.currentScore} onChange={e => updatePlayerScore(player.id, e.target.value)} className="w-full bg-gray-800 text-orange-400 p-1 rounded text-center text-sm" />
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Add Player Dialog */}
+          <dialog ref={addPlayerDialog} className="bg-gray-800 text-white p-4 rounded w-4/5">
+            <h2 className="text-base font-semibold mb-2">Add Player</h2>
+            <input type="text" placeholder="Name" value={newPlayerName} onChange={e => setNewPlayerName(e.target.value)} className="w-full mb-3 p-2 bg-gray-700 rounded text-white text-sm" autoFocus />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => addPlayerDialog.current.close()} className="px-3 py-1 bg-gray-600 rounded text-xs">Cancel</button>
+              <button onClick={addPlayer} className="px-3 py-1 bg-blue-600 rounded text-xs">Add</button>
+            </div>
+          </dialog>
+
+          {/* Mode Selection Dialog */}
+          <dialog ref={modeDialog} className="bg-gray-800 text-white p-4 rounded w-4/5">
+            <h2 className="text-base font-semibold mb-2">Scoring Mode</h2>
+            <div className="flex flex-col gap-2">
+              <button onClick={() => { setLowestScoreWins(false); modeDialog.current.close(); }} className="p-3 bg-blue-600 rounded text-xs">↑ High Wins</button>
+              <button onClick={() => { setLowestScoreWins(true); modeDialog.current.close(); }} className="p-3 bg-blue-600 rounded text-xs">↓ Low Wins</button>
+            </div>
+          </dialog>
+
+          {/* Results Dialog */}
+          <dialog ref={resultsDialog} className="bg-gray-800 text-white p-4 rounded w-4/5">
+            <h2 className="text-base font-semibold mb-3">Final ({lowestScoreWins ? 'Low' : 'High'} Wins)</h2>
+            <div className="space-y-1 mb-3">
+              {getSortedPlayers().map((p, i) => (
+                <div key={p.id} className="bg-gray-700 p-2 rounded flex items-center gap-2 text-sm">
+                  <span className="font-bold text-orange-400">{i+1}{getOrdinalSuffix(i+1)}</span>
+                  <span className="flex-1">{p.name}</span>
+                  <span className="font-bold">{p.total}</span>
+                </div>
+              ))}
+            </div>
+            <div className="text-right">
+              <button onClick={() => resultsDialog.current.close()} className="px-3 py-1 bg-blue-600 rounded text-xs">Close</button>
+            </div>
+          </dialog>
+
+          {/* Bottom Buttons */}
+          <div className="grid grid-cols-3 gap-1 p-3 bg-gray-800">
+            <button onClick={clearScores} className="bg-blue-400 text-white p-2 rounded text-xs">CLR</button>
+            <button onClick={() => { modeDialog.current.showModal(); newGame(); }} className="bg-blue-400 text-white p-2 rounded text-xs">NEW</button>
+            <button onClick={calculateTotals} className="bg-blue-400 text-white p-2 rounded text-xs">CALC</button>
+            <button onClick={undoLastRound} disabled={!history.length} className="bg-blue-400 text-white p-2 rounded text-xs disabled:opacity-50">UNDO</button>
+            <button onClick={() => resultsDialog.current.showModal()} className="bg-orange-400 text-white p-2 rounded text-xs">END</button>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<GameScoreTracker />);
+  </script>
+</body>
+</html>

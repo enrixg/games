@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+        <html>
+        <head>
+            <title>Snake Game</title>
+            <style>
+                body {
+                    margin: 0;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    height: 100vh;
+                    background-color: #222;
+                }
+                canvas {
+                    border: 2px solid #00ff00;
+                }
+            </style>
+        </head>
+        <body>
+            <canvas id="gameCanvas" width="400" height="400"></canvas>
+            <script>
+                const canvas = document.getElementById('gameCanvas');
+                const ctx = canvas.getContext('2d');
+                const boxSize = 20;
+                let snake = [{x: 200, y: 200}];
+                let food = {x: 0, y: 0};
+                let dx = 0;
+                let dy = 0;
+                let score = 0;
+                
+                function draw() {
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    
+                    ctx.fillStyle = '#00ff00';
+                    snake.forEach(segment => {
+                        ctx.fillRect(segment.x, segment.y, boxSize, boxSize);
+                    });
+                    
+                    ctx.fillStyle = '#ff0000';
+                    ctx.fillRect(food.x, food.y, boxSize, boxSize);
+                    
+                    ctx.fillStyle = '#fff';
+                    ctx.font = '20px Arial';
+                    ctx.fillText('Score: ' + score, 10, 20);
+                }
+                
+                function update() {
+                    const head = {x: snake[0].x + dx, y: snake[0].y + dy};
+                    snake.unshift(head);
+                    
+                    if (head.x === food.x && head.y === food.y) {
+                        score++;
+                        generateFood();
+                    } else {
+                        snake.pop();
+                    }
+                    
+                    if (head.x < 0 || head.x >= canvas.width || 
+                        head.y < 0 || head.y >= canvas.height || 
+                        snake.slice(1).some(segment => segment.x === head.x && segment.y === head.y)) {
+                        reset();
+                    }
+                }
+                
+                function generateFood() {
+                    food = {
+                        x: Math.floor(Math.random() * (canvas.width / boxSize)) * boxSize,
+                        y: Math.floor(Math.random() * (canvas.height / boxSize)) * boxSize
+                    };
+                }
+                
+                function reset() {
+                    snake = [{x: 200, y: 200}];
+                    dx = dy = 0;
+                    score = 0;
+                }
+                
+                document.addEventListener('keydown', e => {
+                    switch(e.key) {
+                        case 'ArrowLeft': if (dx === 0) { dx = -boxSize; dy = 0; } break;
+                        case 'ArrowRight': if (dx === 0) { dx = boxSize; dy = 0; } break;
+                        case 'ArrowUp': if (dy === 0) { dx = 0; dy = -boxSize; } break;
+                        case 'ArrowDown': if (dy === 0) { dx = 0; dy = boxSize; } break;
+                    }
+                });
+                
+                generateFood();
+                setInterval(() => {
+                    update();
+                    draw();
+                }, 100);
+            </script>
+        </body>
+        </html>

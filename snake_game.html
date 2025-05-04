@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Snake Game</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: #f0f0f0;
+        }
+        canvas {
+            border: 1px solid #000;
+            background: #fff;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="400" height="400"></canvas>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const gridSize = 20;
+        const tileCount = canvas.width / gridSize;
+        let snake = [{x: 10, y: 10}];
+        let velocity = {x: 0, y: 0};
+        let food = {x: 5, y: 5};
+        let score = 0;
+        let gameOver = false;
+
+        function gameLoop() {
+            if (gameOver) return;
+            
+            const head = {x: snake[0].x + velocity.x, y: snake[0].y + velocity.y};
+            snake.unshift(head);
+            
+            if (head.x === food.x && head.y === food.y) {
+                score++;
+                placeFood();
+            } else {
+                snake.pop();
+            }
+            
+            if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
+                endGame();
+                return;
+            }
+            
+            for (let i = 1; i < snake.length; i++) {
+                if (head.x === snake[i].x && head.y === snake[i].y) {
+                    endGame();
+                    return;
+                }
+            }
+            
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function draw() {
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.fillStyle = '#00ff00';
+            snake.forEach(part => {
+                ctx.fillRect(part.x * gridSize, part.y * gridSize, gridSize - 2, gridSize - 2);
+            });
+            
+            ctx.fillStyle = '#ff0000';
+            ctx.fillRect(food.x * gridSize, food.y * gridSize, gridSize - 2, gridSize - 2);
+            
+            ctx.fillStyle = '#000';
+            ctx.font = '16px Arial';
+            ctx.fillText('Score: ' + score, 10, 20);
+        }
+
+        function placeFood() {
+            food.x = Math.floor(Math.random() * tileCount);
+            food.y = Math.floor(Math.random() * tileCount);
+            
+            for (const part of snake) {
+                if (part.x === food.x && part.y === food.y) {
+                    placeFood();
+                    return;
+                }
+            }
+        }
+
+        function endGame() {
+            gameOver = true;
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#fff';
+            ctx.font = '30px Arial';
+            ctx.fillText('Game Over!', 100, 200);
+            ctx.font = '20px Arial';
+            ctx.fillText('Final Score: ' + score, 130, 240);
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (gameOver && e.code === 'Enter') {
+                snake = [{x: 10, y: 10}];
+                velocity = {x: 0, y: 0};
+                score = 0;
+                gameOver = false;
+                placeFood();
+                requestAnimationFrame(gameLoop);
+                return;
+            }
+            
+            if (e.code === 'ArrowUp' && velocity.y === 0) velocity = {x: 0, y: -1};
+            if (e.code === 'ArrowDown' && velocity.y === 0) velocity = {x: 0, y: 1};
+            if (e.code === 'ArrowLeft' && velocity.x === 0) velocity = {x: -1, y: 0};
+            if (e.code === 'ArrowRight' && velocity.x === 0) velocity = {x: 1, y: 0};
+        });
+
+        placeFood();
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>
