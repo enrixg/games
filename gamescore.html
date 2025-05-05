@@ -193,6 +193,14 @@
                 </div>
               ))
             )}
+          {/* Bottom Buttons */}
+          <div className="grid grid-cols-3 gap-1 p-3 bg-gray-800">
+            <button onClick={clearScores} className="bg-blue-400 text-white p-2 rounded text-xs">CLR</button>
+            <button onClick={() => { modeDialog.current.showModal(); newGame(); }} className="bg-blue-400 text-white p-2 rounded text-xs">NEW</button>
+            <button onClick={calculateTotals} className="bg-blue-400 text-white p-2 rounded text-xs">CALC</button>
+            <button onClick={undoLastRound} disabled={!history.length} className="bg-blue-400 text-white p-2 rounded text-xs disabled:opacity-50">UNDO</button>
+            <button onClick={() => resultsDialog.current.showModal()} className="bg-orange-400 text-white p-2 rounded text-xs">END</button>
+          </div>
           </div>
 
           {/* Edit Score Dialog */}
@@ -275,14 +283,6 @@
             </div>
           </dialog>
 
-          {/* Bottom Buttons */}
-          <div className="grid grid-cols-3 gap-1 p-3 bg-gray-800">
-            <button onClick={clearScores} className="bg-blue-400 text-white p-2 rounded text-xs">CLR</button>
-            <button onClick={() => { modeDialog.current.showModal(); newGame(); }} className="bg-blue-400 text-white p-2 rounded text-xs">NEW</button>
-            <button onClick={calculateTotals} className="bg-blue-400 text-white p-2 rounded text-xs">CALC</button>
-            <button onClick={undoLastRound} disabled={!history.length} className="bg-blue-400 text-white p-2 rounded text-xs disabled:opacity-50">UNDO</button>
-            <button onClick={() => resultsDialog.current.showModal()} className="bg-orange-400 text-white p-2 rounded text-xs">END</button>
-          </div>
         </div>
       );
     }
