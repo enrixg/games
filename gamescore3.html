@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Score Tracker</title>
+    <!-- Include Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Include React and ReactDOM via CDN -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <!-- Include Babel Standalone for JSX transpilation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        /* Basic styles to prevent layout shifts */
+        body { margin: 0; }
+        #root { min-height: 100vh; }
+        /* Simple scrollbar styling for preset buttons */
+        .preset-scrollbar::-webkit-scrollbar {
+            height: 4px;
+        }
+        .preset-scrollbar::-webkit-scrollbar-thumb {
+            background-color: rgba(156, 163, 175, 0.5); /* gray-400/50 */
+            border-radius: 2px;
+        }
+        .preset-scrollbar {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // Icon placeholders
+        const Menu = () => <span>☰</span>;
+        const Sun = () => <span>☀️</span>;
+        const Moon = () => <span>🌙</span>;
+        const Plus = () => <span>+</span>;
+        const Minus = () => <span>-</span>;
+        const UserPlus = () => <span>👤+</span>;
+        const RotateCcw = () => <span>↩️</span>;
+        const Save = () => <span>💾</span>;
+        const Award = () => <span>🏆</span>;
+        const RefreshCw = () => <span>🔄</span>;
+        // Removed: Trash2, Edit as they weren't used in the provided code snippet
+
+        const GameScoreTracker = () => {
+          // Demo state
+          const [darkMode, setDarkMode] = useState(true);
+          const [players, setPlayers] = useState([
+            { id: 1, name: "Alex", currentScore: 25, total: 120, lastHand: 25 },
+            { id: 2, name: "Taylor", currentScore: -10, total: 85, lastHand: -10 },
+            { id: 3, name: "Jordan", currentScore: 15, total: 95, lastHand: 15 }
+          ]);
+          const [lowestScoreWins, setLowestScoreWins] = useState(false);
+          
+          // Score presets with improved visual distinction
+          const scorePresets = [
+            { value: -10, label: "-10", color: "bg-red-600" },
+            { value: -5, label: "-5", color: "bg-red-500" },
+            { value: 5, label: "+5", color: "bg-green-500" },
+            { value: 10, label: "+10", color: "bg-green-600" },
+            { value: 25, label: "+25", color: "bg-green-700" }
+          ];
+
+          // Sort players by score (based on winning condition)
+          const sortedPlayers = [...players].sort((a, b) => 
+            lowestScoreWins ? a.total - b.total : b.total - a.total
+          );
+
+          // Get leader value for progress bars
+          const leaderValue = lowestScoreWins 
+            ? Math.min(...players.map(p => p.total))
+            : Math.max(...players.map(p => p.total));
+
+          // Calculate progress percentage
+          const progressPercent = (player) => {
+            if (leaderValue === 0 && player.total === 0) return 0; // Avoid division by zero if all scores are 0
+            if (leaderValue === 0 && !lowestScoreWins) return 0; // Avoid division by zero if leader is 0 (highest wins)
+
+            let percent;
+            if (lowestScoreWins) {
+              const worst = Math.max(...players.map(p => p.total));
+              // Handle case where leader and worst are the same (e.g., single player or all tied)
+              if (worst === leaderValue) return 100; 
+              percent = (worst - player.total) / (worst - leaderValue);
+            } else {
+               // Handle case where leaderValue is 0 or negative
+              if (leaderValue <= 0) {
+                 // If all scores are 0 or negative, assign 0% unless it's the leader
+                 return player.total === leaderValue ? 100 : 0; 
+              }
+              percent = player.total / leaderValue;
+            }
+            // Ensure percent is between 0 and 1 before multiplying by 100
+            return Math.min(1, Math.max(0, percent)) * 100;
+          };
+
+
+          // Add points to player
+          const addPresetScore = (id, delta) => {
+            setPlayers(prev => prev.map(p => 
+              p.id === id ? { ...p, currentScore: (p.currentScore || 0) + delta } : p
+            ));
+          };
+
+          // Toggle dark/light mode
+          const toggleDarkMode = () => {
+            setDarkMode(!darkMode);
+            // Toggle class on html element for Tailwind dark mode
+            document.documentElement.classList.toggle('dark', !darkMode);
+          };
+
+          // Apply dark mode class on initial load and when toggled
+          useEffect(() => {
+            if (darkMode) {
+              document.documentElement.classList.add('dark');
+            } else {
+              document.documentElement.classList.remove('dark');
+            }
+          }, [darkMode]);
+
+          // Configure Tailwind dark mode
+          tailwind.config = {
+            darkMode: 'class', // Use the 'class' strategy
+            theme: {
+              extend: {}, // Add custom theme extensions if needed
+            },
+            plugins: [],
+          }
+
+          return (
+            <div className={`min-h-screen ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-900'} transition-colors duration-300`}>
+              {/* Header */}
+              <header className={`${darkMode ? 'bg-blue-800' : 'bg-blue-600'} p-4 sticky top-0 z-10 shadow-lg text-white`}>
+                <div className="flex justify-between items-center">
+                  <button className="p-2 rounded-full hover:bg-blue-700 transition-colors">
+                    <Menu size={24} />
+                  </button>
+                  
+                  <div className="text-center">
+                    <h1 className="font-bold text-xl">Game Calc</h1>
+                    <p className="text-xs text-white/80">
+                      {lowestScoreWins ? "Lowest score wins" : "Highest score wins"}
+                    </p>
+                  </div>
+                  
+                  <button 
+                    className="p-2 rounded-full hover:bg-blue-700 transition-colors"
+                    onClick={toggleDarkMode}
+                  >
+                    {darkMode ? <Sun size={24} /> : <Moon size={24} />}
+                  </button>
+                </div>
+              </header>
+
+              {/* Player cards */}
+              <main className="p-4 pb-24">
+                {sortedPlayers.map((player, index) => (
+                  <div 
+                    key={player.id} 
+                    className={`mb-6 rounded-xl overflow-hidden shadow-lg ${
+                      darkMode ? 'bg-gray-800' : 'bg-white'
+                    } transition-all duration-300`}
+                  >
+                    {/* Position indicator */}
+                    <div className={`h-2 ${
+                      index === 0 ? 'bg-yellow-500' : 
+                      index === 1 ? 'bg-gray-400' : 
+                      index === 2 ? 'bg-amber-700' : 'bg-blue-500'
+                    } transition-all duration-500 ease-out`} 
+                    style={{width: `${progressPercent(player)}%`}}></div>
+                    
+                    {/* Player info */}
+                    <div className="flex justify-between items-center p-4">
+                      <div className="flex items-center">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center mr-3 ${
+                          index === 0 ? 'bg-yellow-500' : 
+                          index === 1 ? 'bg-gray-400' : 
+                          index === 2 ? 'bg-amber-700' : 'bg-blue-500'
+                        }`}>
+                          <span className="font-bold text-gray-900">{index + 1}</span>
+                        </div>
+                        <div>
+                          <h2 className="font-bold text-lg">{player.name}</h2>
+                          <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                            Total: {player.total} (Last: {player.lastHand >= 0 ? '+' : ''}{player.lastHand})
+                          </p>
+                        </div>
+                      </div>
+                      <div className={`text-xl font-bold rounded-lg px-3 py-1 ${
+                        player.currentScore > 0 ? 'bg-green-500/20 text-green-500' : 
+                        player.currentScore < 0 ? 'bg-red-500/20 text-red-500' : 
+                        darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'
+                      }`}>
+                        {player.currentScore > 0 ? '+' : ''}{player.currentScore}
+                      </div>
+                    </div>
+                    
+                    {/* Score controls */}
+                    <div className="flex p-4 pt-0 gap-2">
+                      {/* Custom score input */}
+                      <div className="flex rounded-lg overflow-hidden shadow-sm">
+                        <button 
+                          className={`p-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} text-lg transition-colors`}
+                          onClick={() => addPresetScore(player.id, -1)}
+                        >
+                          <Minus size={20} />
+                        </button>
+                        <input 
+                          type="number" 
+                          value={player.currentScore}
+                          className={`w-14 text-center font-bold border-y ${
+                            darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-gray-200 text-gray-900 border-gray-300'
+                          }`}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value) || 0;
+                            setPlayers(prev => prev.map(p => 
+                              p.id === player.id ? { ...p, currentScore: val } : p
+                            ));
+                          }}
+                        />
+                        <button 
+                          className={`p-3 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} text-lg transition-colors`}
+                          onClick={() => addPresetScore(player.id, 1)}
+                        >
+                          <Plus size={20} />
+                        </button>
+                      </div>
+                      
+                      {/* Score presets */}
+                      <div className="flex gap-2 overflow-x-auto pb-1 flex-1 justify-end preset-scrollbar">
+                        {scorePresets.map((preset) => (
+                          <button
+                            key={preset.value}
+                            className={`${preset.color} text-white font-bold py-3 px-3 rounded-lg min-w-10 shadow-sm hover:brightness-110 active:scale-95 transition-all`}
+                            onClick={() => addPresetScore(player.id, preset.value)}
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </main>
+              
+              {/* Bottom action bar */}
+              <div className={`fixed bottom-0 left-0 right-0 ${darkMode ? 'bg-gray-800 border-t border-gray-700' : 'bg-white border-t border-gray-200'} shadow-lg rounded-t-xl`}>
+                <div className="flex justify-around items-center p-2">
+                  <button className={`p-3 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-200'} flex flex-col items-center transition-colors`}>
+                    <UserPlus size={24} />
+                    <span className="text-xs mt-1">Add Player</span>
+                  </button>
+                  <button className={`p-3 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-200'} flex flex-col items-center transition-colors`}>
+                    <RotateCcw size={24} />
+                    <span className="text-xs mt-1">Undo</span>
+                  </button>
+                  <div className="relative -mt-8">
+                    <button className="w-16 h-16 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-lg hover:bg-blue-700 active:scale-95 transition-all">
+                      <Save size={28} />
+                    </button>
+                    <span className={`absolute -bottom-6 left-1/2 -translate-x-1/2 text-xs whitespace-nowrap font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Save Round</span>
+                  </div>
+                  <button className={`p-3 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-200'} flex flex-col items-center transition-colors`}>
+                    <Award size={24} />
+                    <span className="text-xs mt-1">Results</span>
+                  </button>
+                  <button className={`p-3 rounded-full ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-200'} flex flex-col items-center transition-colors`}>
+                    <RefreshCw size={24} />
+                    <span className="text-xs mt-1">New Game</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        };
+
+        // Render the component to the DOM
+        const container = document.getElementById('root');
+        const root = ReactDOM.createRoot(container);
+        root.render(<GameScoreTracker />);
+    </script>
+</body>
+</html>
