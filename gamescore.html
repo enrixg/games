@@ -177,7 +177,7 @@
           <div className="grid grid-cols-12 bg-gray-700 p-2 text-white text-xs">
             <div className="col-span-6">Name</div>
             <div className="col-span-2 text-center">Tot</div>
-            <div className="col-span-2 text-center">Last</div>
+            <div className="col-span-2 text-center">Prev</div>
             <div className="col-span-2 text-center">Cur</div>
           </div>
 
@@ -194,21 +194,15 @@
                     <button onClick={() => removePlayer(player.id)} className="text-gray-400 hover:text-white text-sm">✕</button>
                   </div>
                   <div className="col-span-2 text-center" onClick={() => setEditingPlayerId(player.id)}>{player.total}</div>
-                  <div className="col-span-2 text-center text-orange-400" onClick={() => setEditingPlayerId(player.id)}>{player.lastHand}</div>
-                  <div className="col-span-2 text-center">
+                  <div className="col-span-2 text-center text-orange-400" onClick={() => setEditingPlayerId(player.id)}>{player.lastHand}</div> {/* Keep variable name lastHand for logic */}
+                  <div className="col-span-2 text-center flex items-center justify-center gap-1">
+                    <button onClick={() => updatePlayerScore(player.id, player.currentScore - 1)} className="text-xs bg-gray-600 hover:bg-gray-500 text-white rounded px-1">-</button>
                     <input type="number" value={player.currentScore} onChange={e => updatePlayerScore(player.id, e.target.value)} className="w-full bg-gray-800 text-orange-400 p-1 rounded text-center text-sm" />
+                    <button onClick={() => updatePlayerScore(player.id, player.currentScore + 1)} className="text-xs bg-gray-600 hover:bg-gray-500 text-white rounded px-1">+</button>
                   </div>
                 </div>
               ))
             )}
-          {/* Bottom Buttons */}
-          <div className="grid grid-cols-3 gap-1 p-3 bg-gray-800">
-            <button onClick={clearScores} className="bg-blue-400 text-white p-2 rounded text-xs">CLR</button>
-            <button onClick={() => { modeDialog.current.showModal(); newGame(); }} className="bg-blue-400 text-white p-2 rounded text-xs">NEW</button>
-            <button onClick={calculateTotals} className="bg-blue-400 text-white p-2 rounded text-xs">CALC</button>
-            <button onClick={undoLastRound} disabled={!history.length} className="bg-blue-400 text-white p-2 rounded text-xs disabled:opacity-50">UNDO</button>
-            <button onClick={() => resultsDialog.current.showModal()} className="bg-orange-400 text-white p-2 rounded text-xs">END</button>
-          </div>
           </div>
 
           {/* Edit Score Dialog */}
@@ -218,7 +212,7 @@
               <div className="flex flex-col gap-2">
                 <label className="text-sm">Total Score:</label>
                 <input type="number" value={editingPlayer.total} onChange={e => setEditingPlayer({ ...editingPlayer, total: parseInt(e.target.value) || 0 })} className="w-full p-2 bg-gray-700 rounded text-white text-sm" />
-                <label className="text-sm">Last Hand Score:</label>
+                <label className="text-sm">Previous Round Score:</label>
                 <input type="number" value={editingPlayer.lastHand} onChange={e => setEditingPlayer({ ...editingPlayer, lastHand: parseInt(e.target.value) || 0 })} className="w-full p-2 bg-gray-700 rounded text-white text-sm" />
               </div>
             )}
@@ -279,7 +273,7 @@
                       {round.map(player => (
                         <div key={player.id} className="flex justify-between text-xs">
                           <span>{player.name}</span>
-                          <span>{player.lastHand}</span>
+                          <span>{player.lastHand}</span> {/* Keep variable name lastHand for logic */}
                         </div>
                       ))}
                     </div>
@@ -292,6 +286,14 @@
             </div>
           </dialog>
 
+          {/* Bottom Buttons - Fixed Footer */}
+          <div className="sticky bottom-0 grid grid-cols-3 gap-1 p-3 bg-gray-800 border-t border-gray-700">
+            <button onClick={clearScores} className="bg-blue-400 text-white p-2 rounded text-xs">CLR</button>
+            <button onClick={() => { modeDialog.current.showModal(); newGame(); }} className="bg-blue-400 text-white p-2 rounded text-xs">NEW</button>
+            <button onClick={calculateTotals} className="bg-blue-400 text-white p-2 rounded text-xs">CALC</button>
+            <button onClick={undoLastRound} disabled={!history.length} className="bg-blue-400 text-white p-2 rounded text-xs disabled:opacity-50">UNDO</button>
+            <button onClick={() => resultsDialog.current.showModal()} className="bg-orange-400 text-white p-2 rounded text-xs">END</button>
+          </div>
         </div>
       );
     }
