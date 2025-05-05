@@ -136,6 +136,14 @@
         }
       };
 
+      const fullReset = () => {
+        if (window.confirm('Are you sure you want to fully reset the game? This will clear all players, scores, and history.')) {
+          setPlayers([]);
+          setHistory([]);
+          setLowestScoreWins(false);
+        }
+      };
+
       const getOrdinalSuffix = i => {
         const j = i % 10, k = i % 100;
         if (j === 1 && k !== 11) return 'st';
@@ -236,6 +244,7 @@
             <div className="flex flex-col gap-2">
               <button onClick={() => { setLowestScoreWins(false); modeDialog.current.close(); }} className="p-3 bg-blue-600 rounded text-xs">↑ High Wins</button>
               <button onClick={() => { setLowestScoreWins(true); modeDialog.current.close(); }} className="p-3 bg-blue-600 rounded text-xs">↓ Low Wins</button>
+              <button onClick={() => { fullReset(); modeDialog.current.close(); }} className="p-3 bg-red-600 rounded text-xs">Full Reset</button>
             </div>
           </dialog>
 
