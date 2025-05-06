@@ -46,7 +46,12 @@
 
       // crud
       const addPlayer=name=>{const n=name.trim(); if(!n) return; setPlayers([...players,{id:Date.now(),name:n,total:0,last:0,cur:0}]); vibrate(5);}  
-      const rmPlayer=id=>setPlayers(players.filter(p=>p.id!==id));
+      const rmPlayer=(id, name)=>{
+        if (window.confirm(`Are you sure you want to remove ${name}?`)) {
+          setPlayers(players.filter(p=>p.id!==id));
+          vibrate(5); // Haptic feedback
+        }
+      };
       const setCur=(id,val)=>setPlayers(players.map(p=>p.id===id?{...p,cur:val}:p));
       const applyPreset=(id,d)=>setPlayers(players.map(p=>p.id===id?{...p,cur:p.cur+d}:p));
       const saveRound=()=>{ if(!players.length) return; setHistory([...history,players.map(p=>({...p}))]); setPlayers(players.map(p=>({...p,total:p.total+p.cur,last:p.cur,cur:0}))); vibrate([20,40,20]); };
@@ -73,7 +78,7 @@
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold" style={{background:i===0?'#d4af37':i===1?'#c0c0c0':'#cd7f32'}}>{i+1}</div>
                 <input value={p.name} onChange={e=>setPlayers(players.map(pl=>pl.id===p.id?{...pl,name:e.target.value}:pl))} className="flex-1 bg-transparent outline-none text-sm" />
-                <button onClick={()=>rmPlayer(p.id)} className="opacity-60 hover:opacity-100"><i data-lucide="x"></i></button>
+                <button onClick={()=>rmPlayer(p.id, p.name)} className="text-red-500 opacity-75 hover:opacity-100 p-1"><i data-lucide="trash-2" className="w-5 h-5"></i></button>
               </div>
               <p className="text-xs mb-2 opacity-75">Total: {p.total} <span className="ml-1">(Last: {p.last>=0?'+':''}{p.last})</span></p>
               <div className="flex gap-2">
