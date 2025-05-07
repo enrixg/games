@@ -260,7 +260,7 @@
     };
     const ICONS = {
       Swords: "\u2694\uFE0F", // ⚔️
-      Clubs: "\uD83C\uDF3C", // 🌼 (placeholder)
+      Clubs: "\u2663\uFE0F", // ♣️ (Standard club suit)
       Cups: "\uD83C\uDF77", // 🍷
       Coins: "\uD83D\uDCB0", // 💰
     };
@@ -517,8 +517,19 @@
       }, 800);
     }
 
-    function determineWinner(a, b) {
-      return beats(a.card, b.card) || (!beats(b.card, a.card) && a.by === "player") ? a : b;
+    function determineWinner(a, b) { // a is the first card played, b is the second
+        // If card 'a' beats card 'b'
+        if (beats(a.card, b.card)) {
+            return a;
+        }
+        // Else if card 'b' beats card 'a'
+        else if (beats(b.card, a.card)) {
+            return b;
+        }
+        // Else (neither card beats the other: different suits, neither is briscola)
+        else {
+            return a; // The first card played (a) wins
+        }
     }
 
     /* ----------- DEALING ----------- */
